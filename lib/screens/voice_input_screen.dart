@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🔧 ADDED
 import '../providers/voice_provider.dart';
 import '../providers/habit_provider.dart';
 import '../utils/theme.dart';
@@ -20,7 +21,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // 🔧 ADDED: Auto-process state
+  // 🔧 UPDATED: Auto-process state
   bool _autoProcess = false;
 
   @override
@@ -28,6 +29,23 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     super.initState();
     _initializeAnimations();
     _initializeVoiceProvider();
+    _loadAutoProcessState(); // 🔧 ADDED: Load saved state
+  }
+
+  // 🔧 ADDED: Load auto-process state from storage
+  void _loadAutoProcessState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _autoProcess = prefs.getBool('auto_process_voice') ?? false;
+      });
+    }
+  }
+
+  // 🔧 ADDED: Save auto-process state to storage
+  void _saveAutoProcessState(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_process_voice', value);
   }
 
   void _initializeAnimations() {
@@ -87,12 +105,11 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
       ),
       body: Consumer2<VoiceProvider, HabitProvider>(
         builder: (context, voiceProvider, habitProvider, child) {
-          // 🔧 ADDED: Auto-process logic
+          // Auto-process logic
           if (_autoProcess &&
               !voiceProvider.isListening &&
               voiceProvider.currentWords.isNotEmpty &&
               !voiceProvider.isProcessing) {
-            // Delay to ensure UI is stable
             Future.delayed(const Duration(milliseconds: 500), () {
               if (mounted && voiceProvider.currentWords.isNotEmpty) {
                 _processVoiceInput(voiceProvider, habitProvider);
@@ -119,7 +136,6 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
                             const SizedBox(height: AppTheme.spacingL),
                             _buildVoiceTextCard(voiceProvider),
                             const SizedBox(height: AppTheme.spacingL),
-                            // 🔧 ADDED: Auto-process checkbox
                             _buildAutoProcessCheckbox(),
                             const SizedBox(height: AppTheme.spacingXL),
                             _buildActionButtons(voiceProvider, habitProvider),
@@ -128,7 +144,6 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
                         ),
                       ),
                     ),
-                    // 🔧 FIXED: Instructions card in fixed bottom container with proper cancel button
                     Container(
                       padding: const EdgeInsets.fromLTRB(
                         AppTheme.spacingM,
@@ -148,7 +163,6 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
                       ),
                       child: Column(
                         children: [
-                          // 🔧 FIXED: Cancel button properly positioned above instructions
                           if (voiceProvider.isListening) ...[
                             SizedBox(
                               width: double.infinity,
@@ -181,7 +195,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     );
   }
 
-  // 🔧 ADDED: Auto-process checkbox widget
+  // 🔧 UPDATED: Auto-process checkbox with persistence
   Widget _buildAutoProcessCheckbox() {
     return Card(
       child: Padding(
@@ -194,6 +208,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
                 setState(() {
                   _autoProcess = value ?? false;
                 });
+                _saveAutoProcessState(_autoProcess); // 🔧 ADDED: Save state
               },
             ),
             const SizedBox(width: AppTheme.spacingS),
@@ -225,6 +240,9 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     );
   }
 
+  // ... rest of your existing methods remain unchanged ...
+  // (keeping all the other methods exactly as they were)
+
   Widget _buildVoiceVisualizer(VoiceProvider voiceProvider) {
     return Container(
       width: 220,
@@ -243,7 +261,6 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Background circle
             Container(
               width: 180,
               height: 180,
@@ -259,15 +276,11 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
                 ],
               ),
             ),
-
-            // Voice button
             VoiceButton(
               size: 80,
               isFloating: false,
               onPressed: () => _handleVoiceButtonPressed(voiceProvider),
             ),
-
-            // Confidence indicator
             if (voiceProvider.confidence > 0)
               Positioned(
                 bottom: 20,
@@ -352,7 +365,6 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
               ),
             ],
           ),
-          // Show helpful tips during listening
           if (voiceProvider.isListening) ...[
             const SizedBox(height: AppTheme.spacingS),
             Text(
@@ -364,7 +376,6 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
               textAlign: TextAlign.center,
             ),
           ],
-          // Show confidence when processing
           if (voiceProvider.confidence > 0 && !voiceProvider.isListening) ...[
             const SizedBox(height: AppTheme.spacingS),
             Row(
@@ -391,7 +402,6 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     );
   }
 
-  // Helper method for confidence colors
   Color _getConfidenceColor(double confidence) {
     if (confidence >= 0.8) return AppTheme.successColor;
     if (confidence >= 0.6) return AppTheme.warningColor;
@@ -621,7 +631,6 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     }
   }
 
-  // Event handlers
   void _handleVoiceButtonPressed(VoiceProvider voiceProvider) async {
     if (voiceProvider.isListening) {
       await voiceProvider.stopListening();
@@ -750,7 +759,6 @@ class VoiceCommandsHelpSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle bar
           Center(
             child: Container(
               width: 40,
@@ -762,31 +770,26 @@ class VoiceCommandsHelpSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppTheme.spacingL),
-
           Text('Voice Commands Guide', style: AppTheme.headlineSmall),
           const SizedBox(height: AppTheme.spacingM),
-
           _buildCommandSection(context, 'Habit Completion', [
             '"I completed my morning run"',
             '"I did my meditation today"',
             '"I finished drinking water"',
             '"I just did my exercise"',
           ]),
-
           _buildCommandSection(context, 'Habit Skipping', [
             '"I skipped my workout"',
             '"I missed my reading today"',
             '"I didn\'t do my meditation"',
             '"I can\'t do my run today"',
           ]),
-
           _buildCommandSection(context, 'Tips for Better Recognition', [
             'Speak clearly and at normal pace',
             'Use exact habit names when possible',
             'Speak in a quiet environment',
             'Hold the button close to your mouth',
           ], isInfo: true),
-
           SizedBox(
             height: MediaQuery.of(context).padding.bottom + AppTheme.spacingM,
           ),
