@@ -38,6 +38,8 @@ dependencies:
   
   # Premium Features
   in_app_purchase: ^3.1.13
+  flutter_local_notifications: ^19.3.1
+  timezone: ^0.10.1
 
 
 dev_dependencies:

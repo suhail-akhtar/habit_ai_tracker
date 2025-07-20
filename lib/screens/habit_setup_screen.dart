@@ -35,6 +35,28 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     if (widget.habitToEdit != null) {
       _initializeWithExistingHabit();
     }
+    // Check premium limits on screen load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPremiumLimitsOnLoad();
+    });
+  }
+
+  void _checkPremiumLimitsOnLoad() {
+    if (widget.habitToEdit != null) return; // Editing existing habit
+
+    final userProvider = context.read<UserProvider>();
+    final validation = userProvider.validateHabitCreation();
+
+    if (!validation.isAllowed) {
+      // Show premium dialog immediately and go back
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showPremiumDialog(
+          context,
+          feature: 'Create more than ${Constants.freeHabitLimit} habits',
+          onClose: () => Navigator.of(context).pop(),
+        );
+      });
+    }
   }
 
   void _initializeWithExistingHabit() {
@@ -71,31 +93,111 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
       ),
       body: Consumer2<HabitProvider, UserProvider>(
         builder: (context, habitProvider, userProvider, child) {
-          return Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppTheme.spacingM),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHabitPreview(),
-                  const SizedBox(height: AppTheme.spacingL),
-                  _buildBasicInfo(),
-                  const SizedBox(height: AppTheme.spacingL),
-                  _buildCategorySelection(),
-                  const SizedBox(height: AppTheme.spacingL),
-                  _buildIconSelection(),
-                  const SizedBox(height: AppTheme.spacingL),
-                  _buildColorSelection(),
-                  const SizedBox(height: AppTheme.spacingL),
-                  _buildFrequencySelection(),
-                  const SizedBox(height: AppTheme.spacingXL),
-                  _buildActionButtons(habitProvider, userProvider),
-                ],
+          return Column(
+            children: [
+              // Premium status banner for new habits
+              if (widget.habitToEdit == null)
+                _buildPremiumStatusBanner(userProvider),
+
+              Expanded(
+                child: Form(
+                  key: _formKey,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(AppTheme.spacingM),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHabitPreview(),
+                        const SizedBox(height: AppTheme.spacingL),
+                        _buildBasicInfo(),
+                        const SizedBox(height: AppTheme.spacingL),
+                        _buildCategorySelection(),
+                        const SizedBox(height: AppTheme.spacingL),
+                        _buildIconSelection(),
+                        const SizedBox(height: AppTheme.spacingL),
+                        _buildColorSelection(),
+                        const SizedBox(height: AppTheme.spacingL),
+                        _buildFrequencySelection(),
+                        const SizedBox(height: AppTheme.spacingXL),
+                        _buildActionButtons(habitProvider, userProvider),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildPremiumStatusBanner(UserProvider userProvider) {
+    final validation = userProvider.validateHabitCreation();
+
+    if (validation.type == PremiumValidationType.success &&
+        userProvider.isPremium) {
+      return const SizedBox.shrink();
+    }
+
+    Color backgroundColor;
+    Color textColor;
+    IconData icon;
+
+    if (!validation.isAllowed) {
+      backgroundColor = AppTheme.errorColor.withOpacity(0.1);
+      textColor = AppTheme.errorColor;
+      icon = Icons.block;
+    } else if (validation.type == PremiumValidationType.warning) {
+      backgroundColor = AppTheme.warningColor.withOpacity(0.1);
+      textColor = AppTheme.warningColor;
+      icon = Icons.warning;
+    } else {
+      backgroundColor = AppTheme.infoColor.withOpacity(0.1);
+      textColor = AppTheme.infoColor;
+      icon = Icons.info;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.spacingM),
+      color: backgroundColor,
+      child: Row(
+        children: [
+          Icon(icon, color: textColor, size: 20),
+          const SizedBox(width: AppTheme.spacingS),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!userProvider.isPremium) ...[
+                  Text(
+                    'Free Tier: ${userProvider.habitCount}/${Constants.freeHabitLimit} habits used',
+                    style: AppTheme.bodySmall.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (validation.message != null) ...[
+                    const SizedBox(height: AppTheme.spacingXS),
+                    Text(
+                      validation.message!,
+                      style: AppTheme.bodySmall.copyWith(color: textColor),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+          if (!userProvider.isPremium)
+            TextButton(
+              onPressed: () => showPremiumDialog(context),
+              child: Text(
+                'Upgrade',
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -406,12 +508,16 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     HabitProvider habitProvider,
     UserProvider userProvider,
   ) {
+    // Check if save should be disabled
+    final validation = userProvider.validateHabitCreation();
+    final canSave = widget.habitToEdit != null || validation.isAllowed;
+
     return Column(
       children: [
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _isLoading
+            onPressed: _isLoading || !canSave
                 ? null
                 : () => _saveHabit(habitProvider, userProvider),
             child: _isLoading
@@ -431,9 +537,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: _isLoading
-                ? null
-                : () => _handleCancel(), // 🔧 FIXED: Proper cancel handling
+            onPressed: _isLoading ? null : () => _handleCancel(),
             child: const Text('Cancel'),
           ),
         ),
@@ -441,7 +545,6 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     );
   }
 
-  // 🔧 ADDED: Proper cancel handling method
   void _handleCancel() {
     try {
       Navigator.of(context).pop();
@@ -451,20 +554,23 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     }
   }
 
-  // 🔧 FIXED: Proper save habit method
+  // 🔧 FIXED: Save habit with proper navigation handling
   void _saveHabit(
     HabitProvider habitProvider,
     UserProvider userProvider,
   ) async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Check premium limits for new habits
-    if (widget.habitToEdit == null && !userProvider.canCreateMoreHabits) {
-      showPremiumDialog(
-        context,
-        feature: 'Create more than ${Constants.freeHabitLimit} habits',
-      );
-      return;
+    // Double-check premium limits before saving
+    if (widget.habitToEdit == null) {
+      final validation = userProvider.validateHabitCreation();
+      if (!validation.isAllowed) {
+        showPremiumDialog(
+          context,
+          feature: 'Create more than ${Constants.freeHabitLimit} habits',
+        );
+        return;
+      }
     }
 
     setState(() {
@@ -488,16 +594,39 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
       );
 
       if (widget.habitToEdit != null) {
+        // Updating existing habit
         await habitProvider.updateHabit(habit);
         if (mounted) {
           Helpers.showSnackBar(context, 'Habit updated successfully');
           Navigator.of(context).pop();
         }
       } else {
-        await habitProvider.addHabit(habit);
-        if (mounted) {
+        // Creating new habit
+        final success = await habitProvider.addHabit(
+          habit,
+          isPremium: userProvider.isPremium,
+        );
+        if (success && mounted) {
+          // Update user provider habit count
+          await userProvider.incrementHabitCount();
+
+          // 🔧 FIXED: Show success message and properly navigate back
           Helpers.showSnackBar(context, 'Habit created successfully');
-          Navigator.of(context).pop();
+
+          // Ensure we navigate back to the previous screen (dashboard)
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          } else {
+            // Fallback navigation
+            Navigator.of(context).pushReplacementNamed('/dashboard');
+          }
+        } else if (mounted) {
+          // Show error from habitProvider if creation failed
+          Helpers.showSnackBar(
+            context,
+            habitProvider.error ?? 'Failed to create habit',
+            isError: true,
+          );
         }
       }
     } catch (e) {
@@ -528,7 +657,6 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     );
   }
 
-  // 🔧 FIXED: Proper delete habit method
   void _deleteHabit() async {
     if (widget.habitToEdit?.id == null) return;
 
@@ -538,6 +666,9 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
 
     try {
       await context.read<HabitProvider>().deleteHabit(widget.habitToEdit!.id!);
+      // Update user provider habit count
+      await context.read<UserProvider>().decrementHabitCount();
+
       if (mounted) {
         Helpers.showSnackBar(context, 'Habit deleted successfully');
         Navigator.of(context).pop();

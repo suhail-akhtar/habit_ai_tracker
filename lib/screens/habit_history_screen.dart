@@ -33,10 +33,7 @@ class _HabitHistoryScreenState extends State<HabitHistoryScreen> {
 
     try {
       final habitProvider = context.read<HabitProvider>();
-      final logs = await habitProvider.getHabitHistory(
-        widget.habit.id!,
-        limit: 50,
-      );
+      final logs = await habitProvider.getHabitHistory(widget.habit.id!);
       final streak = await habitProvider.getHabitStreak(widget.habit.id!);
 
       setState(() {
@@ -61,85 +58,91 @@ class _HabitHistoryScreenState extends State<HabitHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.habit.name} History'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadHistory),
-        ],
-      ),
+      appBar: AppBar(title: Text('${widget.habit.name} History')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _buildStatsCard(),
-                Expanded(
-                  child: _logs.isEmpty
-                      ? _buildEmptyState()
-                      : _buildHistoryList(),
-                ),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildStatsCard() {
-    return Card(
-      margin: const EdgeInsets.all(AppTheme.spacingM),
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacingM),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppTheme.spacingS),
-              decoration: BoxDecoration(
-                color: widget.habit.color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppTheme.radiusS),
-              ),
-              child: Icon(
-                Helpers.getHabitIcon(widget.habit.iconName),
-                color: widget.habit.color,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: AppTheme.spacingM),
-            Expanded(
+          : RefreshIndicator(
+              onRefresh: _loadHistory,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.habit.name, style: AppTheme.titleMedium),
-                  const SizedBox(height: AppTheme.spacingXS),
-                  Text(
-                    'Current Streak: $_currentStreak days',
-                    style: AppTheme.bodySmall.copyWith(
-                      color: Helpers.getStreakColor(_currentStreak),
-                      fontWeight: FontWeight.w600,
-                    ),
+                  _buildHabitHeader(),
+                  Expanded(
+                    child: _logs.isEmpty
+                        ? _buildEmptyState()
+                        : _buildHistoryList(),
                   ),
                 ],
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+    );
+  }
+
+  Widget _buildHabitHeader() {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingM),
+      decoration: BoxDecoration(
+        color: widget.habit.color.withOpacity(0.1),
+        border: Border(
+          bottom: BorderSide(
+            color: widget.habit.color.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spacingM),
+            decoration: BoxDecoration(
+              color: widget.habit.color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(AppTheme.radiusM),
+            ),
+            child: Icon(
+              Helpers.getHabitIcon(widget.habit.iconName),
+              color: widget.habit.color,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: AppTheme.spacingM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(widget.habit.name, style: AppTheme.titleLarge),
+                const SizedBox(height: AppTheme.spacingXS),
                 Text(
-                  '${_logs.length}',
-                  style: AppTheme.headlineSmall.copyWith(
+                  widget.habit.category,
+                  style: AppTheme.bodyMedium.copyWith(
                     color: widget.habit.color,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Total Logs',
-                  style: AppTheme.bodySmall.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.7),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          Column(
+            children: [
+              Icon(
+                Icons.local_fire_department,
+                color: Helpers.getStreakColor(_currentStreak),
+                size: 24,
+              ),
+              Text(
+                '$_currentStreak',
+                style: AppTheme.titleMedium.copyWith(
+                  color: Helpers.getStreakColor(_currentStreak),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'day streak',
+                style: AppTheme.bodySmall.copyWith(
+                  color: Helpers.getStreakColor(_currentStreak),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -163,7 +166,7 @@ class _HabitHistoryScreenState extends State<HabitHistoryScreen> {
           ),
           const SizedBox(height: AppTheme.spacingS),
           Text(
-            'Complete this habit to see your progress here',
+            'Start completing this habit to see your progress here',
             style: AppTheme.bodyMedium.copyWith(
               color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
             ),
@@ -176,107 +179,93 @@ class _HabitHistoryScreenState extends State<HabitHistoryScreen> {
 
   Widget _buildHistoryList() {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
+      padding: const EdgeInsets.all(AppTheme.spacingM),
       itemCount: _logs.length,
       itemBuilder: (context, index) {
         final log = _logs[index];
-        return _buildLogItem(log, index);
+        return _buildHistoryItem(log);
       },
     );
   }
 
-  Widget _buildLogItem(HabitLog log, int index) {
-    final isCompleted = log.inputMethod != 'skip';
+  Widget _buildHistoryItem(HabitLog log) {
+    final isSkipped = log.inputMethod == 'skip';
+    final isVoice = log.inputMethod == 'voice';
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(AppTheme.spacingXS),
-          decoration: BoxDecoration(
-            color: isCompleted
-                ? AppTheme.successColor.withOpacity(0.1)
-                : AppTheme.warningColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(AppTheme.radiusS),
-          ),
-          child: Icon(
-            isCompleted ? Icons.check_circle : Icons.skip_next,
-            color: isCompleted ? AppTheme.successColor : AppTheme.warningColor,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          isCompleted ? 'Completed' : 'Skipped',
-          style: AppTheme.bodyMedium.copyWith(
-            fontWeight: FontWeight.w600,
-            color: isCompleted ? AppTheme.successColor : AppTheme.warningColor,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Row(
           children: [
-            Text(
-              Helpers.formatDateTime(log.completedAt),
-              style: AppTheme.bodySmall,
-            ),
-            if (log.note != null && log.note!.isNotEmpty) ...[
-              const SizedBox(height: AppTheme.spacingXS),
-              Text(
-                log.note!,
-                style: AppTheme.bodySmall.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.7),
-                ),
+            Container(
+              padding: const EdgeInsets.all(AppTheme.spacingS),
+              decoration: BoxDecoration(
+                color: isSkipped
+                    ? AppTheme.errorColor.withOpacity(0.1)
+                    : AppTheme.successColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppTheme.radiusS),
               ),
-            ],
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _getInputMethodIcon(log.inputMethod),
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              child: Icon(
+                isSkipped ? Icons.close : Icons.check,
+                color: isSkipped ? AppTheme.errorColor : AppTheme.successColor,
+                size: 16,
+              ),
             ),
-            const SizedBox(height: AppTheme.spacingXS),
-            Text(
-              _getInputMethodLabel(log.inputMethod),
-              style: AppTheme.bodySmall.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            const SizedBox(width: AppTheme.spacingM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        Helpers.formatDate(log.completedAt),
+                        style: AppTheme.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          if (isVoice) ...[
+                            Icon(
+                              Icons.mic,
+                              size: 12,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: AppTheme.spacingXS),
+                          ],
+                          Text(
+                            Helpers.formatTime(log.completedAt),
+                            style: AppTheme.bodySmall.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (log.note != null && log.note!.isNotEmpty) ...[
+                    const SizedBox(height: AppTheme.spacingXS),
+                    Text(
+                      log.note!,
+                      style: AppTheme.bodySmall.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.7),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  IconData _getInputMethodIcon(String inputMethod) {
-    switch (inputMethod.toLowerCase()) {
-      case 'voice':
-        return Icons.mic;
-      case 'manual':
-        return Icons.touch_app;
-      case 'skip':
-        return Icons.skip_next;
-      default:
-        return Icons.touch_app;
-    }
-  }
-
-  String _getInputMethodLabel(String inputMethod) {
-    switch (inputMethod.toLowerCase()) {
-      case 'voice':
-        return 'Voice';
-      case 'manual':
-        return 'Manual';
-      case 'skip':
-        return 'Skip';
-      default:
-        return 'Manual';
-    }
   }
 }

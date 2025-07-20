@@ -29,7 +29,7 @@ class AppConfig {
   static const bool enableNotifications = true;
 
   // Premium Configuration
-  static const int freeHabitLimit = 3;
+  static const int freeHabitLimit = 5;
   static const String premiumProductId = 'ai_habit_tracker_premium';
 
   // Voice Recognition Configuration

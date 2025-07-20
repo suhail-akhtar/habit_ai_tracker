@@ -41,7 +41,6 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: _getThemeMode(userProvider.getSetting('theme_mode')),
-            // 🔧 FIXED: Add proper route handling
             home: const MainNavigationScreen(),
             routes: {
               '/dashboard': (context) => const DashboardScreen(),
@@ -50,7 +49,6 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
               '/analytics': (context) => const AnalyticsScreen(),
               '/settings': (context) => const SettingsScreen(),
             },
-            // 🔧 ADDED: Handle unknown routes
             onUnknownRoute: (settings) {
               return MaterialPageRoute(
                 builder: (context) => const MainNavigationScreen(),
@@ -85,7 +83,6 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
 
-  // 🔧 FIXED: Proper screen instantiation
   final List<Widget> _screens = const [
     DashboardScreen(),
     VoiceInputScreen(),
@@ -102,14 +99,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   Future<void> _initializeApp() async {
     try {
-      // Initialize providers with error handling
+      // 🔧 ENHANCED: Better initialization order for premium validation
       final userProvider = context.read<UserProvider>();
       final habitProvider = context.read<HabitProvider>();
       final voiceProvider = context.read<VoiceProvider>();
       final analyticsProvider = context.read<AnalyticsProvider>();
 
+      // Load user data first to get premium status
       await userProvider.loadUserData();
+
+      // Then load habits and update habit count in user provider
       await habitProvider.loadHabits();
+      await userProvider.updateHabitCount(habitProvider.habitCount);
+
+      // Initialize other providers
       await voiceProvider.initialize();
       await analyticsProvider.loadAnalytics();
     } catch (e) {

@@ -7,12 +7,9 @@ import '../utils/constants.dart';
 class PremiumDialog extends StatefulWidget {
   final String? feature;
   final VoidCallback? onUpgrade;
+  final VoidCallback? onClose;
 
-  const PremiumDialog({
-    super.key,
-    this.feature,
-    this.onUpgrade,
-  });
+  const PremiumDialog({super.key, this.feature, this.onUpgrade, this.onClose});
 
   @override
   State<PremiumDialog> createState() => _PremiumDialogState();
@@ -32,21 +29,13 @@ class _PremiumDialogState extends State<PremiumDialog>
       vsync: this,
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.elasticOut,
-    ));
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
+    );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
 
     _animationController.forward();
   }
@@ -59,44 +48,64 @@ class _PremiumDialogState extends State<PremiumDialog>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animationController,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: Opacity(
-            opacity: _fadeAnimation.value,
-            child: AlertDialog(
-              contentPadding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.radiusL),
-              ),
-              content: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Theme.of(context).colorScheme.primary,
-                      Theme.of(context).colorScheme.primary.withOpacity(0.8),
+    // 🔧 FIXED: Get screen dimensions for better positioning
+    final screenHeight = MediaQuery.of(context).size.height;
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final safeAreaPadding = MediaQuery.of(context).padding;
+
+    return WillPopScope(
+      onWillPop: () async {
+        widget.onClose?.call();
+        return true;
+      },
+      child: AnimatedBuilder(
+        animation: _animationController,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: Opacity(
+              opacity: _fadeAnimation.value,
+              child: Dialog(
+                // 🔧 FIXED: Use Dialog instead of AlertDialog for better control
+                backgroundColor: Colors.transparent,
+                insetPadding: EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingM,
+                  vertical: safeAreaPadding.top + AppTheme.spacingL,
+                ),
+                child: Container(
+                  // 🔧 FIXED: Constrain height to ensure buttons are accessible
+                  constraints: BoxConstraints(
+                    maxHeight: screenHeight * 0.8, // Max 80% of screen height
+                    minHeight: 400, // Minimum height
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusL),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Theme.of(context).colorScheme.primary,
+                        Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min, // 🔧 FIXED: Use min size
+                    children: [
+                      _buildHeader(),
+                      Flexible(
+                        // 🔧 FIXED: Use Flexible instead of Expanded
+                        child: _buildContent(),
+                      ),
+                      _buildActions(),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusL),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildHeader(),
-                    _buildContent(),
-                    _buildActions(),
-                  ],
                 ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -104,6 +113,7 @@ class _PremiumDialogState extends State<PremiumDialog>
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingL),
       child: Column(
+        mainAxisSize: MainAxisSize.min, // 🔧 FIXED: Minimize header size
         children: [
           Container(
             padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -113,7 +123,7 @@ class _PremiumDialogState extends State<PremiumDialog>
             ),
             child: const Icon(
               Icons.stars,
-              size: 48,
+              size: 40, // 🔧 FIXED: Reduced icon size
               color: Colors.white,
             ),
           ),
@@ -123,6 +133,7 @@ class _PremiumDialogState extends State<PremiumDialog>
             style: AppTheme.headlineSmall.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.bold,
+              fontSize: 20, // 🔧 FIXED: Slightly smaller font
             ),
           ),
           const SizedBox(height: AppTheme.spacingS),
@@ -131,6 +142,7 @@ class _PremiumDialogState extends State<PremiumDialog>
               'Unlock "${widget.feature}" and more!',
               style: AppTheme.bodyMedium.copyWith(
                 color: Colors.white.withOpacity(0.9),
+                fontSize: 14, // 🔧 FIXED: Smaller subtitle
               ),
               textAlign: TextAlign.center,
             ),
@@ -141,7 +153,9 @@ class _PremiumDialogState extends State<PremiumDialog>
 
   Widget _buildContent() {
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
+      padding: const EdgeInsets.all(
+        AppTheme.spacingM,
+      ), // 🔧 FIXED: Reduced padding
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: const BorderRadius.only(
@@ -149,52 +163,101 @@ class _PremiumDialogState extends State<PremiumDialog>
           bottomRight: Radius.circular(AppTheme.radiusL),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Premium Features',
-            style: AppTheme.titleMedium,
-          ),
-          const SizedBox(height: AppTheme.spacingM),
-          ...Constants.premiumFeatures.map(
-            (feature) => _buildFeatureItem(feature),
-          ),
-          const SizedBox(height: AppTheme.spacingM),
-          Container(
-            padding: const EdgeInsets.all(AppTheme.spacingM),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppTheme.radiusM),
+      child: SingleChildScrollView(
+        // 🔧 FIXED: Make content scrollable
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Premium Features', style: AppTheme.titleMedium),
+            const SizedBox(
+              height: AppTheme.spacingS,
+            ), // 🔧 FIXED: Reduced spacing
+            ...Constants.premiumFeatures.map(
+              (feature) => _buildFeatureItem(feature),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.access_time,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: AppTheme.spacingS),
-                Expanded(
-                  child: Text(
-                    'Limited time offer: 30% off first month!',
-                    style: AppTheme.bodySmall.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
+            const SizedBox(height: AppTheme.spacingS),
+            // Show current usage for free users
+            Consumer<UserProvider>(
+              builder: (context, userProvider, child) {
+                if (!userProvider.isPremium) {
+                  return Container(
+                    padding: const EdgeInsets.all(
+                      AppTheme.spacingS,
+                    ), // 🔧 FIXED: Reduced padding
+                    decoration: BoxDecoration(
+                      color: AppTheme.warningColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                      border: Border.all(
+                        color: AppTheme.warningColor.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info,
+                          color: AppTheme.warningColor,
+                          size: 16, // 🔧 FIXED: Smaller icon
+                        ),
+                        const SizedBox(width: AppTheme.spacingS),
+                        Expanded(
+                          child: Text(
+                            'You have ${userProvider.habitCount}/${Constants.freeHabitLimit} habits. Upgrade for unlimited habits!',
+                            style: AppTheme.bodySmall.copyWith(
+                              color: AppTheme.warningColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12, // 🔧 FIXED: Smaller text
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            const SizedBox(height: AppTheme.spacingS),
+            Container(
+              padding: const EdgeInsets.all(
+                AppTheme.spacingS,
+              ), // 🔧 FIXED: Reduced padding
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppTheme.radiusM),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.access_time,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 16, // 🔧 FIXED: Smaller icon
+                  ),
+                  const SizedBox(width: AppTheme.spacingS),
+                  Expanded(
+                    child: Text(
+                      'Limited time offer: 30% off first month!',
+                      style: AppTheme.bodySmall.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12, // 🔧 FIXED: Smaller text
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildFeatureItem(String feature) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppTheme.spacingS),
+      padding: const EdgeInsets.only(
+        bottom: AppTheme.spacingXS,
+      ), // 🔧 FIXED: Reduced spacing
       child: Row(
         children: [
           Container(
@@ -205,7 +268,7 @@ class _PremiumDialogState extends State<PremiumDialog>
             ),
             child: const Icon(
               Icons.check,
-              size: 16,
+              size: 12, // 🔧 FIXED: Smaller check icon
               color: Colors.white,
             ),
           ),
@@ -213,7 +276,10 @@ class _PremiumDialogState extends State<PremiumDialog>
           Expanded(
             child: Text(
               feature,
-              style: AppTheme.bodyMedium,
+              style: AppTheme.bodySmall.copyWith(
+                // 🔧 FIXED: Smaller text
+                fontSize: 13,
+              ),
             ),
           ),
         ],
@@ -223,7 +289,7 @@ class _PremiumDialogState extends State<PremiumDialog>
 
   Widget _buildActions() {
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
+      padding: const EdgeInsets.all(AppTheme.spacingM),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: const BorderRadius.only(
@@ -232,6 +298,7 @@ class _PremiumDialogState extends State<PremiumDialog>
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min, // 🔧 FIXED: Minimize action area
         children: [
           SizedBox(
             width: double.infinity,
@@ -240,17 +307,23 @@ class _PremiumDialogState extends State<PremiumDialog>
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(vertical: AppTheme.spacingM),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppTheme.spacingM,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppTheme.radiusM),
                 ),
+                minimumSize: const Size(
+                  double.infinity,
+                  48,
+                ), // 🔧 FIXED: Ensure tappable size
               ),
               child: Text(
                 'Upgrade Now - \$9.99/month',
                 style: AppTheme.titleMedium.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
+                  fontSize: 16, // 🔧 FIXED: Consistent button text size
                 ),
               ),
             ),
@@ -259,13 +332,33 @@ class _PremiumDialogState extends State<PremiumDialog>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Maybe Later'),
+              Expanded(
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onClose?.call();
+                  },
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(
+                      double.infinity,
+                      44,
+                    ), // 🔧 FIXED: Ensure tappable size
+                  ),
+                  child: const Text('Maybe Later'),
+                ),
               ),
-              TextButton(
-                onPressed: () => _showPricingOptions(),
-                child: const Text('View All Plans'),
+              const SizedBox(width: AppTheme.spacingS),
+              Expanded(
+                child: TextButton(
+                  onPressed: () => _showPricingOptions(),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(
+                      double.infinity,
+                      44,
+                    ), // 🔧 FIXED: Ensure tappable size
+                  ),
+                  child: const Text('View All Plans'),
+                ),
               ),
             ],
           ),
@@ -280,9 +373,7 @@ class _PremiumDialogState extends State<PremiumDialog>
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       // Simulate upgrade process
@@ -394,10 +485,7 @@ class PricingOptionsDialog extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: AppTheme.titleMedium,
-              ),
+              Text(title, style: AppTheme.titleMedium),
               if (isRecommended)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -430,10 +518,9 @@ class PricingOptionsDialog extends StatelessWidget {
                 TextSpan(
                   text: ' $period',
                   style: AppTheme.bodyMedium.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
               ],
@@ -453,12 +540,18 @@ class PricingOptionsDialog extends StatelessWidget {
   }
 }
 
-// Helper function to show premium dialog
-void showPremiumDialog(BuildContext context, {String? feature}) {
+// Helper function with optional close callback
+void showPremiumDialog(
+  BuildContext context, {
+  String? feature,
+  VoidCallback? onClose,
+}) {
   showDialog(
     context: context,
+    barrierDismissible: false,
     builder: (context) => PremiumDialog(
       feature: feature,
+      onClose: onClose,
       onUpgrade: () {
         // Handle post-upgrade actions
       },

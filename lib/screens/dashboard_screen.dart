@@ -5,7 +5,9 @@ import '../providers/user_provider.dart';
 import '../widgets/habit_card.dart';
 import '../widgets/streak_counter.dart';
 import '../widgets/voice_button.dart';
+import '../widgets/premium_dialog.dart';
 import '../utils/theme.dart';
+import '../utils/constants.dart';
 import 'voice_input_screen.dart';
 import 'habit_setup_screen.dart';
 
@@ -18,6 +20,7 @@ class DashboardScreen extends StatelessWidget {
       body: RefreshIndicator(
         onRefresh: () async {
           await context.read<HabitProvider>().loadHabits();
+          await context.read<UserProvider>().loadUserData();
         },
         child: Consumer2<HabitProvider, UserProvider>(
           builder: (context, habitProvider, userProvider, child) {
@@ -50,7 +53,11 @@ class DashboardScreen extends StatelessWidget {
                         const SizedBox(height: AppTheme.spacingL),
                         _buildQuickStatsSection(context, habitProvider),
                         const SizedBox(height: AppTheme.spacingL),
-                        _buildTodayHabitsSection(context, habitProvider),
+                        _buildTodayHabitsSection(
+                          context,
+                          habitProvider,
+                          userProvider,
+                        ),
                       ],
                     ),
                   ),
@@ -67,8 +74,15 @@ class DashboardScreen extends StatelessWidget {
                     );
                   }, childCount: habitProvider.todayHabits.length),
                 ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: AppTheme.spacingXXL),
+                // 🔧 FIXED: Add proper bottom padding to ensure navigation bar is accessible
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height:
+                        MediaQuery.of(context).padding.bottom +
+                        kBottomNavigationBarHeight +
+                        AppTheme
+                            .spacingXL, // Extra space for floating action button
+                  ),
                 ),
               ],
             );
@@ -127,12 +141,24 @@ class DashboardScreen extends StatelessWidget {
                       ).colorScheme.onSurface.withOpacity(0.7),
                     ),
                   ),
+                  if (!userProvider.isPremium) ...[
+                    const SizedBox(height: AppTheme.spacingXS),
+                    Text(
+                      'Habits: ${userProvider.habitCount}/${Constants.freeHabitLimit}',
+                      style: AppTheme.bodySmall.copyWith(
+                        color: userProvider.hasReachedFreeLimit
+                            ? Colors.red
+                            : Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
             if (!userProvider.isPremium)
               TextButton(
-                onPressed: () => _showPremiumDialog(context),
+                onPressed: () => showPremiumDialog(context),
                 child: const Text('Upgrade'),
               ),
           ],
@@ -250,49 +276,39 @@ class DashboardScreen extends StatelessWidget {
   Widget _buildTodayHabitsSection(
     BuildContext context,
     HabitProvider habitProvider,
+    UserProvider userProvider,
   ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text('Today\'s Habits', style: AppTheme.titleMedium),
         TextButton(
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const HabitSetupScreen()),
-          ),
+          onPressed: () => _handleAddNewHabit(context, userProvider),
           child: const Text('Add New'),
         ),
       ],
     );
   }
 
+  void _handleAddNewHabit(BuildContext context, UserProvider userProvider) {
+    final validation = userProvider.validateHabitCreation();
+
+    if (!validation.isAllowed) {
+      showPremiumDialog(
+        context,
+        feature: 'Create more than ${Constants.freeHabitLimit} habits',
+      );
+      return;
+    }
+
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const HabitSetupScreen()));
+  }
+
   void _openVoiceInput(BuildContext context) {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => const VoiceInputScreen()));
-  }
-
-  void _showPremiumDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Upgrade to Premium'),
-        content: const Text(
-          'Unlock unlimited habits, advanced AI insights, and more features!',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Later'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // Handle premium upgrade
-            },
-            child: const Text('Upgrade'),
-          ),
-        ],
-      ),
-    );
   }
 }

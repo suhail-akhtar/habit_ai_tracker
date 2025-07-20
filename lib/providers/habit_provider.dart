@@ -18,15 +18,15 @@ class HabitProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  // 🔧 NEW: Get current habit count
+  int get habitCount => _habits.length;
+
   List<Habit> get todayHabits {
     final today = DateTime.now();
     final todayStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
     return _habits.where((habit) {
-      final completedToday = _todayLogs.any((log) =>
-          log.habitId == habit.id &&
-          log.completedAt.toIso8601String().startsWith(todayStr));
       return habit.isActive;
     }).toList();
   }
@@ -56,13 +56,24 @@ class HabitProvider with ChangeNotifier {
     final startOfDay = DateTime(today.year, today.month, today.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    _todayLogs =
-        await _databaseService.getLogsForDateRange(startOfDay, endOfDay);
+    _todayLogs = await _databaseService.getLogsForDateRange(
+      startOfDay,
+      endOfDay,
+    );
   }
 
-  Future<void> addHabit(Habit habit) async {
+  // 🔧 ENHANCED: Add habit with premium validation
+  Future<bool> addHabit(Habit habit, {required bool isPremium}) async {
     _setLoading(true);
     try {
+      // 🔧 NEW: Strict premium enforcement
+      if (!isPremium && _habits.length >= 3) {
+        _setError(
+          'Free tier allows maximum 3 habits. Upgrade to Premium for unlimited habits.',
+        );
+        return false;
+      }
+
       final habitWithId = habit.copyWith(
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -75,8 +86,10 @@ class HabitProvider with ChangeNotifier {
       _clearError();
 
       notifyListeners();
+      return true;
     } catch (e) {
       _setError('Failed to add habit: $e');
+      return false;
     } finally {
       _setLoading(false);
     }
@@ -116,8 +129,11 @@ class HabitProvider with ChangeNotifier {
     }
   }
 
-  Future<void> logHabitCompletion(int habitId,
-      {String? note, String inputMethod = 'manual'}) async {
+  Future<void> logHabitCompletion(
+    int habitId, {
+    String? note,
+    String inputMethod = 'manual',
+  }) async {
     try {
       final habitLog = HabitLog(
         habitId: habitId,
@@ -167,10 +183,12 @@ class HabitProvider with ChangeNotifier {
     final todayStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
-    return _todayLogs.any((log) =>
-        log.habitId == habitId &&
-        log.completedAt.toIso8601String().startsWith(todayStr) &&
-        log.inputMethod != 'skip');
+    return _todayLogs.any(
+      (log) =>
+          log.habitId == habitId &&
+          log.completedAt.toIso8601String().startsWith(todayStr) &&
+          log.inputMethod != 'skip',
+    );
   }
 
   Future<int> getHabitStreak(int habitId) async {

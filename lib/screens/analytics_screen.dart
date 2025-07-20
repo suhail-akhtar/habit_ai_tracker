@@ -48,18 +48,22 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       body: Consumer3<AnalyticsProvider, HabitProvider, UserProvider>(
         builder:
             (context, analyticsProvider, habitProvider, userProvider, child) {
-          if (analyticsProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+              if (analyticsProvider.isLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildOverviewTab(analyticsProvider, habitProvider, userProvider),
-              _buildInsightsTab(analyticsProvider, userProvider),
-            ],
-          );
-        },
+              return TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildOverviewTab(
+                    analyticsProvider,
+                    habitProvider,
+                    userProvider,
+                  ),
+                  _buildInsightsTab(analyticsProvider, userProvider),
+                ],
+              );
+            },
       ),
     );
   }
@@ -92,7 +96,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildInsightsTab(
-      AnalyticsProvider analyticsProvider, UserProvider userProvider) {
+    AnalyticsProvider analyticsProvider,
+    UserProvider userProvider,
+  ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppTheme.spacingM),
       child: Column(
@@ -119,10 +125,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Statistics Overview',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Statistics Overview', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             Row(
               children: [
@@ -174,7 +177,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildStatCard(
-      String title, String value, IconData icon, Color color) {
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingM),
       decoration: BoxDecoration(
@@ -183,11 +190,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: 32,
-          ),
+          Icon(icon, color: color, size: 32),
           const SizedBox(height: AppTheme.spacingS),
           Text(
             value,
@@ -221,7 +224,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildHabitBreakdown(
-      HabitProvider habitProvider, UserProvider userProvider) {
+    HabitProvider habitProvider,
+    UserProvider userProvider,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -231,23 +236,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Habit Breakdown',
-                  style: AppTheme.titleMedium,
-                ),
-                if (!userProvider.isPremium)
+                Text('Habit Breakdown', style: AppTheme.titleMedium),
+                // 🔧 ENHANCED: Strict premium check
+                if (!userProvider.canAccessPremiumFeature('detailed_breakdown'))
                   TextButton(
-                    onPressed: () => showPremiumDialog(context,
-                        feature: 'Detailed habit breakdown'),
+                    onPressed: () => showPremiumDialog(
+                      context,
+                      feature: 'Detailed habit breakdown',
+                    ),
                     child: const Text('Premium'),
                   ),
               ],
             ),
             const SizedBox(height: AppTheme.spacingM),
-            if (userProvider.isPremium) ...[
+            // 🔧 ENHANCED: More robust premium gating
+            if (userProvider.canAccessPremiumFeature('detailed_breakdown')) ...[
               // Premium detailed breakdown
-              ...habitProvider.habits.take(5).map(
-                  (habit) => _buildHabitProgressItem(habit, habitProvider)),
+              ...habitProvider.habits
+                  .take(5)
+                  .map(
+                    (habit) => _buildHabitProgressItem(habit, habitProvider),
+                  ),
             ] else ...[
               // Free tier limited view
               Container(
@@ -267,10 +276,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                     Text(
                       'Detailed breakdown available in Premium',
                       style: AppTheme.bodyMedium.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.7),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.7),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -307,12 +315,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 ),
               ),
               const SizedBox(width: AppTheme.spacingS),
-              Expanded(
-                child: Text(
-                  habit.name,
-                  style: AppTheme.bodyMedium,
-                ),
-              ),
+              Expanded(child: Text(habit.name, style: AppTheme.bodyMedium)),
               Text(
                 '${streak}d',
                 style: AppTheme.bodySmall.copyWith(
@@ -334,10 +337,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Streak Leaderboard',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Streak Leaderboard', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             ...habitProvider.habits
                 .take(3)
@@ -369,12 +369,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 size: 20,
               ),
               const SizedBox(width: AppTheme.spacingS),
-              Expanded(
-                child: Text(
-                  habit.name,
-                  style: AppTheme.bodyMedium,
-                ),
-              ),
+              Expanded(child: Text(habit.name, style: AppTheme.bodyMedium)),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -410,10 +405,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Weekly Insight',
-                  style: AppTheme.titleMedium,
-                ),
+                Text('Weekly Insight', style: AppTheme.titleMedium),
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () => analyticsProvider.refreshInsight(),
@@ -458,8 +450,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildAIRecommendations(
-      AnalyticsProvider analyticsProvider, UserProvider userProvider) {
-    if (!userProvider.isPremium) {
+    AnalyticsProvider analyticsProvider,
+    UserProvider userProvider,
+  ) {
+    // 🔧 ENHANCED: Strict premium check
+    if (!userProvider.canAccessPremiumFeature('ai_recommendations')) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -471,16 +466,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 color: Theme.of(context).colorScheme.outline,
               ),
               const SizedBox(height: AppTheme.spacingS),
-              Text(
-                'AI Recommendations',
-                style: AppTheme.titleMedium,
-              ),
+              Text('AI Recommendations', style: AppTheme.titleMedium),
               const SizedBox(height: AppTheme.spacingS),
               Text(
                 'Get personalized recommendations based on your habit patterns',
                 style: AppTheme.bodyMedium.copyWith(
-                  color:
-                      Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.7),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -502,10 +495,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'AI Recommendations',
-              style: AppTheme.titleMedium,
-            ),
+            Text('AI Recommendations', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             _buildRecommendationItem(
               'Try morning habits',
@@ -532,25 +522,37 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildPatternAnalysis(
-      AnalyticsProvider analyticsProvider, UserProvider userProvider) {
+    AnalyticsProvider analyticsProvider,
+    UserProvider userProvider,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Pattern Analysis',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Pattern Analysis', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
-            if (userProvider.isPremium) ...[
-              _buildPatternItem('Best Day', 'Monday', Icons.calendar_today,
-                  AppTheme.successColor),
-              _buildPatternItem('Best Time', '8:00 AM', Icons.access_time,
-                  AppTheme.infoColor),
-              _buildPatternItem('Consistency', '78%', Icons.trending_up,
-                  AppTheme.warningColor),
+            // 🔧 ENHANCED: Strict premium check
+            if (userProvider.canAccessPremiumFeature('pattern_analysis')) ...[
+              _buildPatternItem(
+                'Best Day',
+                'Monday',
+                Icons.calendar_today,
+                AppTheme.successColor,
+              ),
+              _buildPatternItem(
+                'Best Time',
+                '8:00 AM',
+                Icons.access_time,
+                AppTheme.infoColor,
+              ),
+              _buildPatternItem(
+                'Consistency',
+                '78%',
+                Icons.trending_up,
+                AppTheme.warningColor,
+              ),
             ] else ...[
               Container(
                 padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -569,10 +571,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                       child: Text(
                         'Detailed pattern analysis available in Premium',
                         style: AppTheme.bodyMedium.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.7),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
                     ),
@@ -587,17 +588,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildGoalSuggestions(
-      AnalyticsProvider analyticsProvider, UserProvider userProvider) {
+    AnalyticsProvider analyticsProvider,
+    UserProvider userProvider,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Goal Suggestions',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Goal Suggestions', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             _buildGoalItem(
               'Reach 30-day streak',
@@ -624,7 +624,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildRecommendationItem(
-      String title, String description, IconData icon, Color color) {
+    String title,
+    String description,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
       padding: const EdgeInsets.all(AppTheme.spacingS),
@@ -649,10 +653,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 Text(
                   description,
                   style: AppTheme.bodySmall.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
               ],
@@ -664,17 +667,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildPatternItem(
-      String label, String value, IconData icon, Color color) {
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppTheme.spacingS),
       child: Row(
         children: [
           Icon(icon, color: color, size: 16),
           const SizedBox(width: AppTheme.spacingS),
-          Text(
-            label,
-            style: AppTheme.bodyMedium,
-          ),
+          Text(label, style: AppTheme.bodyMedium),
           const Spacer(),
           Text(
             value,
@@ -689,14 +693,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildGoalItem(
-      String title, String description, IconData icon, Color color) {
+    String title,
+    String description,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
       padding: const EdgeInsets.all(AppTheme.spacingS),
       decoration: BoxDecoration(
-        border: Border.all(
-          color: color.withOpacity(0.3),
-        ),
+        border: Border.all(color: color.withOpacity(0.3)),
         borderRadius: BorderRadius.circular(AppTheme.radiusS),
       ),
       child: Row(
@@ -716,10 +722,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 Text(
                   description,
                   style: AppTheme.bodySmall.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
               ],
