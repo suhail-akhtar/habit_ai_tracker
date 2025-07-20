@@ -6,7 +6,6 @@ import '../widgets/habit_card.dart';
 import '../widgets/streak_counter.dart';
 import '../widgets/voice_button.dart';
 import '../utils/theme.dart';
-import '../utils/helpers.dart';
 import 'voice_input_screen.dart';
 import 'habit_setup_screen.dart';
 
@@ -29,10 +28,7 @@ class DashboardScreen extends StatelessWidget {
             return CustomScrollView(
               slivers: [
                 SliverAppBar(
-                  title: Text(
-                    'Today',
-                    style: AppTheme.headlineSmall,
-                  ),
+                  title: Text('Today', style: AppTheme.headlineSmall),
                   floating: true,
                   actions: [
                     IconButton(
@@ -60,19 +56,16 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 ),
                 SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final habit = habitProvider.todayHabits[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spacingM,
-                          vertical: AppTheme.spacingS,
-                        ),
-                        child: HabitCard(habit: habit),
-                      );
-                    },
-                    childCount: habitProvider.todayHabits.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final habit = habitProvider.todayHabits[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingM,
+                        vertical: AppTheme.spacingS,
+                      ),
+                      child: HabitCard(habit: habit),
+                    );
+                  }, childCount: habitProvider.todayHabits.length),
                 ),
                 const SliverToBoxAdapter(
                   child: SizedBox(height: AppTheme.spacingXXL),
@@ -129,10 +122,9 @@ class DashboardScreen extends StatelessWidget {
                   Text(
                     'Ready to build great habits?',
                     style: AppTheme.bodyMedium.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.7),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
                     ),
                   ),
                 ],
@@ -150,17 +142,16 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildStreakSection(
-      BuildContext context, HabitProvider habitProvider) {
+    BuildContext context,
+    HabitProvider habitProvider,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Your Streak',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Your Streak', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingS),
             StreakCounter(streak: habitProvider.longestStreak),
           ],
@@ -170,13 +161,16 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildQuickStatsSection(
-      BuildContext context, HabitProvider habitProvider) {
+    BuildContext context,
+    HabitProvider habitProvider,
+  ) {
     final completedToday = habitProvider.todayHabits
         .where((habit) => habitProvider.isHabitCompletedToday(habit.id!))
         .length;
     final totalHabits = habitProvider.todayHabits.length;
-    final completionRate =
-        totalHabits > 0 ? (completedToday / totalHabits) * 100 : 0.0;
+    final completionRate = totalHabits > 0
+        ? (completedToday / totalHabits) * 100
+        : 0.0;
 
     return Card(
       child: Padding(
@@ -184,10 +178,7 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Today\'s Progress',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Today\'s Progress', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -236,11 +227,7 @@ class DashboardScreen extends StatelessWidget {
             color: color.withOpacity(0.1),
             borderRadius: BorderRadius.circular(AppTheme.radiusS),
           ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 24,
-          ),
+          child: Icon(icon, color: color, size: 24),
         ),
         const SizedBox(height: AppTheme.spacingXS),
         Text(
@@ -261,19 +248,16 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildTodayHabitsSection(
-      BuildContext context, HabitProvider habitProvider) {
+    BuildContext context,
+    HabitProvider habitProvider,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          'Today\'s Habits',
-          style: AppTheme.titleMedium,
-        ),
+        Text('Today\'s Habits', style: AppTheme.titleMedium),
         TextButton(
           onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const HabitSetupScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const HabitSetupScreen()),
           ),
           child: const Text('Add New'),
         ),
@@ -282,11 +266,9 @@ class DashboardScreen extends StatelessWidget {
   }
 
   void _openVoiceInput(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const VoiceInputScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const VoiceInputScreen()));
   }
 
   void _showPremiumDialog(BuildContext context) {

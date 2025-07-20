@@ -4,16 +4,14 @@ import '../models/habit.dart';
 import '../providers/habit_provider.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
+import '../screens/habit_setup_screen.dart';
+import '../screens/habit_history_screen.dart';
 
 class HabitCard extends StatefulWidget {
   final Habit habit;
   final VoidCallback? onTap;
 
-  const HabitCard({
-    super.key,
-    required this.habit,
-    this.onTap,
-  });
+  const HabitCard({super.key, required this.habit, this.onTap});
 
   @override
   State<HabitCard> createState() => _HabitCardState();
@@ -32,13 +30,9 @@ class _HabitCardState extends State<HabitCard>
       duration: AppTheme.shortAnimation,
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.95,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -59,8 +53,9 @@ class _HabitCardState extends State<HabitCard>
             return Transform.scale(
               scale: _scaleAnimation.value,
               child: Card(
-                elevation:
-                    _isCompleted ? AppTheme.elevationS : AppTheme.elevationM,
+                elevation: _isCompleted
+                    ? AppTheme.elevationS
+                    : AppTheme.elevationM,
                 child: InkWell(
                   onTap: widget.onTap ?? () => _showHabitDetails(context),
                   onTapDown: (_) => _animationController.forward(),
@@ -72,10 +67,7 @@ class _HabitCardState extends State<HabitCard>
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(AppTheme.radiusM),
                       border: _isCompleted
-                          ? Border.all(
-                              color: AppTheme.successColor,
-                              width: 2,
-                            )
+                          ? Border.all(color: AppTheme.successColor, width: 2)
                           : null,
                     ),
                     child: Column(
@@ -308,10 +300,7 @@ class _HabitDetailsSheet extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      habit.name,
-                      style: AppTheme.headlineSmall,
-                    ),
+                    Text(habit.name, style: AppTheme.headlineSmall),
                     const SizedBox(height: AppTheme.spacingXS),
                     Text(
                       habit.category,
@@ -328,15 +317,9 @@ class _HabitDetailsSheet extends StatelessWidget {
 
           if (habit.description != null) ...[
             const SizedBox(height: AppTheme.spacingL),
-            Text(
-              'Description',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Description', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingS),
-            Text(
-              habit.description!,
-              style: AppTheme.bodyMedium,
-            ),
+            Text(habit.description!, style: AppTheme.bodyMedium),
           ],
 
           const SizedBox(height: AppTheme.spacingL),
@@ -346,10 +329,8 @@ class _HabitDetailsSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // Navigate to edit habit
-                  },
+                  onPressed: () =>
+                      _editHabit(context), // 🔧 FIXED: Implement edit
                   icon: const Icon(Icons.edit),
                   label: const Text('Edit'),
                 ),
@@ -357,10 +338,8 @@ class _HabitDetailsSheet extends StatelessWidget {
               const SizedBox(width: AppTheme.spacingM),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    // Navigate to habit history
-                  },
+                  onPressed: () =>
+                      _viewHistory(context), // 🔧 FIXED: Implement history
                   icon: const Icon(Icons.history),
                   label: const Text('History'),
                 ),
@@ -372,6 +351,26 @@ class _HabitDetailsSheet extends StatelessWidget {
           SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],
       ),
+    );
+  }
+
+  // 🔧 ADDED: Edit habit functionality
+  void _editHabit(BuildContext context) {
+    Navigator.pop(context); // Close bottom sheet
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HabitSetupScreen(habitToEdit: habit),
+      ),
+    );
+  }
+
+  // 🔧 ADDED: View history functionality
+  void _viewHistory(BuildContext context) {
+    Navigator.pop(context); // Close bottom sheet
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => HabitHistoryScreen(habit: habit)),
     );
   }
 }

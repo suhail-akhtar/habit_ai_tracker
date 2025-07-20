@@ -41,7 +41,21 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: _getThemeMode(userProvider.getSetting('theme_mode')),
+            // 🔧 FIXED: Add proper route handling
             home: const MainNavigationScreen(),
+            routes: {
+              '/dashboard': (context) => const DashboardScreen(),
+              '/voice': (context) => const VoiceInputScreen(),
+              '/habit-setup': (context) => const HabitSetupScreen(),
+              '/analytics': (context) => const AnalyticsScreen(),
+              '/settings': (context) => const SettingsScreen(),
+            },
+            // 🔧 ADDED: Handle unknown routes
+            onUnknownRoute: (settings) {
+              return MaterialPageRoute(
+                builder: (context) => const MainNavigationScreen(),
+              );
+            },
             debugShowCheckedModeBanner: false,
           );
         },
@@ -71,12 +85,13 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const VoiceInputScreen(),
-    const HabitSetupScreen(),
-    const AnalyticsScreen(),
-    const SettingsScreen(),
+  // 🔧 FIXED: Proper screen instantiation
+  final List<Widget> _screens = const [
+    DashboardScreen(),
+    VoiceInputScreen(),
+    HabitSetupScreen(),
+    AnalyticsScreen(),
+    SettingsScreen(),
   ];
 
   @override
@@ -86,20 +101,27 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   Future<void> _initializeApp() async {
-    // Initialize providers
-    await context.read<UserProvider>().loadUserData();
-    await context.read<HabitProvider>().loadHabits();
-    await context.read<VoiceProvider>().initialize();
-    await context.read<AnalyticsProvider>().loadAnalytics();
+    try {
+      // Initialize providers with error handling
+      final userProvider = context.read<UserProvider>();
+      final habitProvider = context.read<HabitProvider>();
+      final voiceProvider = context.read<VoiceProvider>();
+      final analyticsProvider = context.read<AnalyticsProvider>();
+
+      await userProvider.loadUserData();
+      await habitProvider.loadHabits();
+      await voiceProvider.initialize();
+      await analyticsProvider.loadAnalytics();
+    } catch (e) {
+      print('App initialization error: $e');
+      // Continue with app even if some providers fail
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {

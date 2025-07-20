@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'constants.dart';
+import '../providers/voice_provider.dart';
+import 'theme.dart';
 
 class Helpers {
   // Date and Time Helpers
@@ -119,16 +121,17 @@ class Helpers {
   }
 
   // UI Helpers
-  static void showSnackBar(BuildContext context, String message,
-      {bool isError = false}) {
+  static void showSnackBar(
+    BuildContext context,
+    String message, {
+    bool isError = false,
+  }) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? Colors.red : Colors.green,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -200,5 +203,79 @@ class Helpers {
     if (streak >= 7) return Colors.green;
     if (streak >= 3) return Colors.blue;
     return Colors.grey;
+  }
+
+  /// Get color based on confidence level
+  static Color getConfidenceColor(double confidence) {
+    if (confidence >= 0.8) return AppTheme.successColor;
+    if (confidence >= 0.6) return AppTheme.warningColor;
+    if (confidence >= 0.4) return AppTheme.infoColor;
+    return AppTheme.errorColor;
+  }
+
+  /// Format confidence as percentage
+  static String formatConfidence(double confidence) {
+    return '${(confidence * 100).toInt()}%';
+  }
+
+  /// Get confidence description
+  static String getConfidenceDescription(double confidence) {
+    if (confidence >= 0.9) return 'Excellent';
+    if (confidence >= 0.8) return 'Very Good';
+    if (confidence >= 0.7) return 'Good';
+    if (confidence >= 0.6) return 'Fair';
+    if (confidence >= 0.4) return 'Poor';
+    return 'Very Poor';
+  }
+
+  /// Validate voice command input
+  static bool isValidVoiceCommand(String input) {
+    if (input.trim().isEmpty) return false;
+    if (input.length < 3) return false;
+    if (input.length > 200) return false;
+    return true;
+  }
+
+  /// Extract habit name from voice text using simple NLP
+  static String? extractHabitName(String voiceText, List<String> habitNames) {
+    final words = voiceText.toLowerCase().split(' ');
+
+    // Find the best matching habit name
+    String? bestMatch;
+    int maxMatchCount = 0;
+
+    for (final habitName in habitNames) {
+      final habitWords = habitName.toLowerCase().split(' ');
+      int matchCount = 0;
+
+      for (final habitWord in habitWords) {
+        if (words.contains(habitWord)) {
+          matchCount++;
+        }
+      }
+
+      if (matchCount > maxMatchCount && matchCount > 0) {
+        maxMatchCount = matchCount;
+        bestMatch = habitName;
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /// Format voice feedback message
+  static String formatVoiceFeedback(VoiceCommand command) {
+    if (command.habitName == null) {
+      return 'Could not identify the habit from your voice input';
+    }
+
+    switch (command.action) {
+      case VoiceAction.completed:
+        return '✅ "${command.habitName}" marked as completed!';
+      case VoiceAction.skipped:
+        return '⏭️ "${command.habitName}" marked as skipped';
+      case VoiceAction.none:
+        return '❓ Unable to determine action for "${command.habitName}"';
+    }
   }
 }

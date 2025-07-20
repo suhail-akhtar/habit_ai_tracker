@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ai_voice_habit_tracker/providers/habit_provider.dart';
-import 'package:ai_voice_habit_tracker/models/habit.dart';
 
 void main() {
   group('Habit Provider Tests', () {

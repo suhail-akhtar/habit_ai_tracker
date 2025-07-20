@@ -1,4 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Internet permission -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- Voice recognition permissions -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    
+    <!-- Vibration permission -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    
+    <!-- Storage permissions (if needed for caching) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+                     android:maxSdkVersion="28" />
     <application
         android:label="habit_ai_tracker"
         android:name="${applicationName}"

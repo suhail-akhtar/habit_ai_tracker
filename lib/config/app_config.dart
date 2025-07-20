@@ -2,10 +2,21 @@ class AppConfig {
   static const String appName = 'AI Voice Habit Tracker';
   static const String appVersion = '1.0.0';
 
-  // API Configuration
+  // 🔧 FIXED: Gemini API Configuration for gemini-2.5-flash
   static const String geminiApiKey = 'AIzaSyCYEdW8B5WhT15w6Xb8pSOeXhtJwiQJBoc';
   static const String geminiBaseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
+  static const String geminiModel =
+      'gemini-2.5-flash'; // ✅ Your accessible model
+
+  // API endpoint construction
+  static String get geminiEndpoint =>
+      '$geminiBaseUrl/$geminiModel:generateContent';
+
+  //Debugging
+
+  static const bool enableApiDebugging = false;
+  static Duration apiTimeout = Duration(seconds: 30);
 
   // Database Configuration
   static const String databaseName = 'habit_tracker.db';

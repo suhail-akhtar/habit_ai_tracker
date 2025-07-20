@@ -1,257 +1,471 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../models/habit.dart';
 import '../config/app_config.dart';
 
 class GeminiService {
-  static const String _baseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+  static final http.Client _httpClient = http.Client();
+  int _retryCount = 0;
 
   Future<Map<String, dynamic>> processVoiceInput(
     String voiceText,
     List<Habit> userHabits,
   ) async {
-    final prompt = _buildVoicePrompt(voiceText, userHabits);
+    if (voiceText.trim().isEmpty) {
+      return _createErrorResponse('Empty voice input');
+    }
 
     try {
+      if (kDebugMode) {
+        print('🤖 GeminiService: 🎯 Processing voice input: "$voiceText"');
+        print(
+          '🤖 GeminiService: 📝 Available habits: ${userHabits.map((h) => h.name).join(', ')}',
+        );
+      }
+
+      final prompt = _buildVoicePrompt(voiceText, userHabits);
       final response = await _callGeminiAPI(prompt);
-      return _parseVoiceResponse(response);
+      final result = _parseVoiceResponse(response);
+
+      if (kDebugMode) {
+        print('🤖 GeminiService: ✅ AI processing successful: $result');
+      }
+      return result;
     } catch (e) {
-      print('Gemini API error: $e');
+      if (kDebugMode) {
+        print('🤖 GeminiService: ❌ AI processing failed: $e');
+      }
       return _fallbackProcessing(voiceText, userHabits);
     }
   }
 
   Future<String> generateWeeklyInsight(
-      Map<String, dynamic> analyticsData) async {
-    final prompt = _buildInsightPrompt(analyticsData);
-
+    Map<String, dynamic> analyticsData,
+  ) async {
     try {
+      final prompt = _buildInsightPrompt(analyticsData);
       final response = await _callGeminiAPI(prompt);
       return response.trim();
     } catch (e) {
-      print('Gemini insight generation error: $e');
+      if (kDebugMode) {
+        print('🤖 GeminiService: ❌ Insight generation failed: $e');
+      }
       return _generateFallbackInsight(analyticsData);
     }
   }
 
-  Future<List<String>> generateHabitSuggestions(String category) async {
-    final prompt = '''
-Generate 5 specific, actionable habit suggestions for the "$category" category.
-Return only a JSON array of strings, no additional text.
-Examples: ["Drink 8 glasses of water", "Take 10,000 steps", "Read for 30 minutes"]
-''';
+  Future<String> _callGeminiAPI(String prompt) async {
+    _retryCount = 0;
 
-    try {
-      final response = await _callGeminiAPI(prompt);
-      final parsed = jsonDecode(response);
-      if (parsed is List) {
-        return parsed.cast<String>();
+    while (_retryCount < AppConfig.maxAiRetries) {
+      try {
+        final requestBody = _buildRequestBody(prompt);
+
+        if (kDebugMode) {
+          print(
+            '🤖 GeminiService: 🌐 Making API request (attempt ${_retryCount + 1}/${AppConfig.maxAiRetries})',
+          );
+          print(
+            '🤖 GeminiService: 📤 Request URL: ${AppConfig.geminiEndpoint}',
+          );
+        }
+
+        final response = await _httpClient
+            .post(
+              Uri.parse(AppConfig.geminiEndpoint),
+              headers: _buildHeaders(),
+              body: jsonEncode(requestBody),
+            )
+            .timeout(const Duration(seconds: 15));
+
+        if (kDebugMode) {
+          print('🤖 GeminiService: 📥 Response Status: ${response.statusCode}');
+          print('🤖 GeminiService: 📥 Response Body: ${response.body}');
+        }
+
+        if (response.statusCode == 200) {
+          return _extractContentFromResponse(response.body);
+        } else {
+          throw HttpException(
+            'API Error ${response.statusCode}: ${response.body}',
+            uri: Uri.parse(AppConfig.geminiEndpoint),
+          );
+        }
+      } catch (e) {
+        _retryCount++;
+        if (kDebugMode) {
+          print('🤖 GeminiService: ⚠️ Attempt $_retryCount failed: $e');
+        }
+
+        if (_retryCount >= AppConfig.maxAiRetries) {
+          throw Exception(
+            'API call failed after ${AppConfig.maxAiRetries} attempts: $e',
+          );
+        }
+
+        // Simple backoff
+        await Future.delayed(Duration(milliseconds: 1000 * _retryCount));
       }
-    } catch (e) {
-      print('Gemini suggestion generation error: $e');
     }
 
-    return _getFallbackSuggestions(category);
+    throw Exception('API call failed after all retry attempts');
   }
 
+  Map<String, String> _buildHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': AppConfig.geminiApiKey,
+    };
+  }
+
+  // 🔧 FIXED: Updated request body with proper token allocation and safety settings
+  Map<String, dynamic> _buildRequestBody(String prompt) {
+    return {
+      'contents': [
+        {
+          'parts': [
+            {'text': prompt},
+          ],
+        },
+      ],
+      'generationConfig': {
+        'temperature': 0.1,
+        'topK': 40,
+        'topP': 0.95,
+        "thinkingConfig": {"thinkingBudget": 0},
+        'maxOutputTokens': 512, // 🔧 INCREASED: More tokens for response
+        'responseMimeType': 'text/plain',
+      },
+      // 🔧 REMOVED: Safety settings that might interfere with response
+      'safetySettings': [
+        {'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_NONE'},
+        {'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_NONE'},
+        {
+          'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          'threshold': 'BLOCK_NONE',
+        },
+        {
+          'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          'threshold': 'BLOCK_NONE',
+        },
+      ],
+    };
+  }
+
+  // 🔧 ENHANCED: Better response extraction handling all possible structures
+  String _extractContentFromResponse(String responseBody) {
+    try {
+      final data = jsonDecode(responseBody);
+
+      if (kDebugMode) {
+        print('🤖 GeminiService: 🔍 Full response: ${jsonEncode(data)}');
+      }
+
+      // Check if response was blocked or truncated
+      if (data['candidates'] != null && data['candidates'].isNotEmpty) {
+        final candidate = data['candidates'][0];
+        final finishReason = candidate['finishReason'];
+
+        if (kDebugMode) {
+          print('🤖 GeminiService: 📋 Finish reason: $finishReason');
+        }
+
+        // Handle different finish reasons
+        if (finishReason == 'SAFETY') {
+          throw Exception('Response blocked by safety filters');
+        }
+
+        if (finishReason == 'MAX_TOKENS') {
+          if (kDebugMode) {
+            print('🤖 GeminiService: ⚠️ Response truncated due to token limit');
+          }
+          // Continue processing even if truncated - might still have useful content
+        }
+
+        // Try multiple extraction strategies
+        String? content;
+
+        // Strategy 1: Standard content.parts[0].text
+        if (candidate['content']?['parts'] != null &&
+            candidate['content']['parts'].isNotEmpty &&
+            candidate['content']['parts'][0]['text'] != null) {
+          content = candidate['content']['parts'][0]['text'];
+        }
+        // Strategy 2: Direct content.text (alternative structure)
+        else if (candidate['content']?['text'] != null) {
+          content = candidate['content']['text'];
+        }
+        // Strategy 3: Check if content field has a direct string value
+        else if (candidate['content'] is String) {
+          content = candidate['content'];
+        }
+        // Strategy 4: Look for text field at candidate level
+        else if (candidate['text'] != null) {
+          content = candidate['text'];
+        }
+        // Strategy 5: Check for any field with "text" in the name
+        else {
+          for (final key in candidate.keys) {
+            if (key.toLowerCase().contains('text') &&
+                candidate[key] is String) {
+              content = candidate[key];
+              break;
+            }
+          }
+        }
+
+        if (content != null && content.toString().trim().isNotEmpty) {
+          return content.toString().trim();
+        }
+
+        // If we still don't have content, log the structure and throw
+        if (kDebugMode) {
+          print('🤖 GeminiService: 🚨 Content extraction failed');
+          print(
+            '🤖 GeminiService: 📊 Candidate structure: ${jsonEncode(candidate)}',
+          );
+        }
+      }
+
+      // Last resort: check for any text-like field in the entire response
+      final responseStr = jsonEncode(data);
+      final textMatch = RegExp(
+        r'"text"\s*:\s*"([^"]*)"',
+      ).firstMatch(responseStr);
+      if (textMatch != null) {
+        final extractedText = textMatch.group(1);
+        if (extractedText != null && extractedText.trim().isNotEmpty) {
+          return extractedText.trim();
+        }
+      }
+
+      throw Exception(
+        'No valid content found in response - Full response: ${jsonEncode(data)}',
+      );
+    } catch (e) {
+      if (e is FormatException) {
+        throw Exception('Invalid JSON response: $responseBody');
+      }
+      rethrow;
+    }
+  }
+
+  // 🔧 OPTIMIZED: Shorter, more focused prompt to avoid token limits
   String _buildVoicePrompt(String voiceText, List<Habit> habits) {
-    final habitNames = habits.map((h) => h.name).join(', ');
+    final habitNames = habits.map((h) => h.name).toList();
 
-    return '''
-Analyze this voice input: "$voiceText"
+    return '''Voice: "$voiceText"
+Habits: ${habitNames.join(', ')}
 
-User's habits: $habitNames
-
-Return ONLY a JSON response with this exact format:
-{
-  "habit": "exact habit name from list or null",
-  "action": "completed/skipped/none", 
-  "confidence": 0.8,
-  "note": "any additional context or null"
-}
+JSON only:
+{"habit": "exact name or null", "action": "completed/skipped/none", "confidence": 0.8, "note": null}
 
 Rules:
-- Match the closest habit name from the list
-- If no clear match, return null for habit
-- Action should be "completed" for positive words, "skipped" for negative, "none" if unclear
-- Confidence should be 0.0-1.0
-- Note should capture any mood or context mentioned
-''';
-  }
-
-  String _buildInsightPrompt(Map<String, dynamic> analyticsData) {
-    return '''
-Based on this habit tracking data, provide a motivational weekly insight in exactly 50 words or less:
-
-- Total habits: ${analyticsData['totalHabits']}
-- Habits completed this week: ${analyticsData['recentLogs']}
-- Best streak: ${analyticsData['bestStreak']} days
-- Completion rate: ${analyticsData['completionRate']}%
-
-Focus on encouragement and one specific actionable next step. Be personal and motivating.
-''';
-  }
-
-  Future<String> _callGeminiAPI(String prompt) async {
-    final response = await http.post(
-      Uri.parse(_baseUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': AppConfig.geminiApiKey,
-      },
-      body: jsonEncode({
-        'contents': [
-          {
-            'parts': [
-              {'text': prompt}
-            ]
-          }
-        ],
-        'generationConfig': {
-          'temperature': 0.1,
-          'maxOutputTokens': 200,
-          'topP': 0.8,
-          'topK': 10,
-        }
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final content = data['candidates']?[0]?['content']?['parts']?[0]?['text'];
-      if (content != null) {
-        return content.toString().trim();
-      }
-    }
-
-    throw Exception(
-        'Failed to get response from Gemini API: ${response.statusCode}');
+- completed: done, finished, did
+- skipped: missed, didn't, forgot
+- exact habit name from list''';
   }
 
   Map<String, dynamic> _parseVoiceResponse(String response) {
     try {
-      // Clean the response to extract JSON
-      final cleanResponse =
-          response.replaceAll(RegExp(r'```json|```'), '').trim();
+      // Handle potential truncation - find the JSON part
+      String cleanResponse = response
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+
+      // If response was truncated, try to complete the JSON
+      if (!cleanResponse.endsWith('}')) {
+        // Find the last complete field
+        final lastCommaIndex = cleanResponse.lastIndexOf(',');
+        final lastQuoteIndex = cleanResponse.lastIndexOf('"');
+
+        if (lastCommaIndex > lastQuoteIndex) {
+          // Remove incomplete field and close JSON
+          cleanResponse = '${cleanResponse.substring(0, lastCommaIndex)}}';
+        } else if (lastQuoteIndex > 0) {
+          // Add closing quote and brace
+          cleanResponse = '$cleanResponse"}';
+        } else {
+          // Try to find any JSON-like structure
+          final jsonMatch = RegExp(r'\{[^}]*\}').firstMatch(cleanResponse);
+          if (jsonMatch != null) {
+            cleanResponse = jsonMatch.group(0)!;
+          }
+        }
+      }
+
+      if (kDebugMode) {
+        print('🤖 GeminiService: 🧹 Cleaned response: $cleanResponse');
+      }
+
       final parsed = jsonDecode(cleanResponse);
 
       return {
         'habit': parsed['habit'],
         'action': parsed['action'] ?? 'none',
-        'confidence': (parsed['confidence'] ?? 0.0).toDouble(),
+        'confidence': (parsed['confidence'] ?? 0.0).toDouble().clamp(0.0, 1.0),
         'note': parsed['note'],
       };
     } catch (e) {
-      print('Error parsing Gemini response: $e');
-      return {
-        'habit': null,
-        'action': 'none',
-        'confidence': 0.0,
-        'note': null,
-      };
+      if (kDebugMode) {
+        print('🤖 GeminiService: ❌ Failed to parse AI response: $e');
+        print('🤖 GeminiService: 📝 Raw response: $response');
+      }
+      return _createErrorResponse('Failed to parse AI response');
     }
   }
 
   Map<String, dynamic> _fallbackProcessing(
-      String voiceText, List<Habit> userHabits) {
+    String voiceText,
+    List<Habit> userHabits,
+  ) {
+    if (kDebugMode) {
+      print('🤖 GeminiService: 🔄 Using fallback processing for: "$voiceText"');
+    }
+
     final lowerText = voiceText.toLowerCase();
+    Habit? bestMatch;
+    double bestScore = 0.0;
 
-    // Simple keyword matching
+    // Find best matching habit with improved algorithm
     for (final habit in userHabits) {
-      final habitWords = habit.name.toLowerCase().split(' ');
-      final matchCount =
-          habitWords.where((word) => lowerText.contains(word)).length;
-
-      if (matchCount > 0) {
-        String action = 'none';
-        double confidence = matchCount / habitWords.length;
-
-        if (lowerText.contains('completed') ||
-            lowerText.contains('done') ||
-            lowerText.contains('finished') ||
-            lowerText.contains('did')) {
-          action = 'completed';
-          confidence = (confidence * 0.8).clamp(0.0, 1.0);
-        } else if (lowerText.contains('skipped') ||
-            lowerText.contains('missed') ||
-            lowerText.contains('didn\'t') ||
-            lowerText.contains('not')) {
-          action = 'skipped';
-          confidence = (confidence * 0.7).clamp(0.0, 1.0);
-        }
-
-        return {
-          'habit': habit.name,
-          'action': action,
-          'confidence': confidence,
-          'note': null,
-        };
+      final score = _calculateHabitMatchScore(
+        lowerText,
+        habit.name.toLowerCase(),
+      );
+      if (score > bestScore && score > 0.2) {
+        // Lower threshold for better matching
+        bestScore = score;
+        bestMatch = habit;
       }
     }
 
+    if (bestMatch == null) {
+      return _createErrorResponse('No matching habit found');
+    }
+
+    // Determine action with improved detection
+    String action = 'none';
+    double actionConfidence = 0.5;
+
+    if (_containsCompletionWords(lowerText)) {
+      action = 'completed';
+      actionConfidence = 0.8;
+    } else if (_containsSkipWords(lowerText)) {
+      action = 'skipped';
+      actionConfidence = 0.7;
+    }
+
+    final finalConfidence = (bestScore * actionConfidence).clamp(0.0, 1.0);
+
+    final result = {
+      'habit': bestMatch.name,
+      'action': action,
+      'confidence': finalConfidence,
+      'note': 'Processed with fallback algorithm',
+    };
+
+    if (kDebugMode) {
+      print('🤖 GeminiService: 🎯 Fallback result: $result');
+    }
+    return result;
+  }
+
+  // 🔧 IMPROVED: Better habit matching algorithm
+  double _calculateHabitMatchScore(String input, String habitName) {
+    final inputWords = input.split(' ').where((w) => w.length > 2).toList();
+    final habitWords = habitName.split(' ').where((w) => w.length > 2).toList();
+
+    if (habitWords.isEmpty) return 0.0;
+
+    int exactMatches = 0;
+    int partialMatches = 0;
+
+    for (final habitWord in habitWords) {
+      bool foundExact = false;
+      bool foundPartial = false;
+
+      for (final inputWord in inputWords) {
+        if (inputWord == habitWord) {
+          exactMatches++;
+          foundExact = true;
+          break;
+        } else if (inputWord.contains(habitWord) ||
+            habitWord.contains(inputWord)) {
+          if (!foundPartial) {
+            partialMatches++;
+            foundPartial = true;
+          }
+        }
+      }
+    }
+
+    // Weight exact matches more heavily
+    final score =
+        (exactMatches * 1.0 + partialMatches * 0.6) / habitWords.length;
+    return score.clamp(0.0, 1.0);
+  }
+
+  bool _containsCompletionWords(String text) {
+    const words = [
+      'completed',
+      'done',
+      'finished',
+      'did',
+      'accomplished',
+      'complete',
+    ];
+    return words.any((word) => text.contains(word));
+  }
+
+  bool _containsSkipWords(String text) {
+    const words = [
+      'skipped',
+      'missed',
+      'didn\'t',
+      'not',
+      'forgot',
+      'skip',
+      'miss',
+    ];
+    return words.any((word) => text.contains(word));
+  }
+
+  // 🔧 OPTIMIZED: Shorter insight prompt
+  String _buildInsightPrompt(Map<String, dynamic> analyticsData) {
+    return '''Stats: ${analyticsData['totalHabits'] ?? 0} habits, ${analyticsData['recentLogs'] ?? 0} completed, ${analyticsData['bestStreak'] ?? 0} best streak, ${analyticsData['completionRate'] ?? 0}% rate.
+
+Write motivational insight (max 40 words):''';
+  }
+
+  String _generateFallbackInsight(Map<String, dynamic> analyticsData) {
+    final completionRate = analyticsData['completionRate'] as int? ?? 0;
+    final bestStreak = analyticsData['bestStreak'] as int? ?? 0;
+
+    if (completionRate >= 80) {
+      return "Outstanding $completionRate% completion! Your $bestStreak-day streak shows incredible consistency. Keep momentum by focusing on your easiest habit tomorrow.";
+    } else if (completionRate >= 60) {
+      return "Great $completionRate% progress! Your $bestStreak-day streak demonstrates commitment. Pick one habit to prioritize this week for even better results.";
+    } else if (completionRate >= 40) {
+      return "Building momentum at $completionRate%! Every step counts. Focus on one simple habit today to boost your confidence and streak.";
+    } else {
+      return "Starting strong with $completionRate%! Choose your easiest habit and commit to it for just 3 days. Small wins create lasting change.";
+    }
+  }
+
+  Map<String, dynamic> _createErrorResponse(String message) {
     return {
       'habit': null,
       'action': 'none',
       'confidence': 0.0,
-      'note': null,
+      'note': message,
     };
   }
 
-  String _generateFallbackInsight(Map<String, dynamic> analyticsData) {
-    final completionRate = analyticsData['completionRate'] as int;
-    final bestStreak = analyticsData['bestStreak'] as int;
-
-    if (completionRate >= 80) {
-      return "Amazing work! You're crushing your habits with a $completionRate% completion rate. Keep this momentum going and try adding one new habit to challenge yourself.";
-    } else if (completionRate >= 60) {
-      return "Great progress! You're completing $completionRate% of your habits. Your best streak is $bestStreak days - let's beat that record this week!";
-    } else if (completionRate >= 40) {
-      return "You're building momentum with a $completionRate% completion rate. Focus on consistency over perfection - even small steps count toward lasting change.";
-    } else {
-      return "Every journey starts with a single step. Your $completionRate% completion rate shows you're trying. Pick one habit to focus on this week and build from there.";
-    }
-  }
-
-  List<String> _getFallbackSuggestions(String category) {
-    final suggestions = {
-      'health': [
-        'Drink 8 glasses of water daily',
-        'Take 10,000 steps',
-        'Sleep 8 hours per night',
-        'Eat 5 servings of fruits and vegetables',
-        'Exercise for 30 minutes'
-      ],
-      'productivity': [
-        'Write in a journal for 10 minutes',
-        'Read for 30 minutes',
-        'Plan tomorrow before bed',
-        'Do a 5-minute meditation',
-        'Organize workspace daily'
-      ],
-      'learning': [
-        'Study a new language for 15 minutes',
-        'Watch educational videos',
-        'Take online course lessons',
-        'Practice a musical instrument',
-        'Learn one new fact daily'
-      ],
-      'social': [
-        'Call a friend or family member',
-        'Send a thoughtful message',
-        'Practice gratitude',
-        'Volunteer for a cause',
-        'Join a community group'
-      ],
-      'creative': [
-        'Write in a creative journal',
-        'Draw or sketch for 20 minutes',
-        'Take photos of interesting subjects',
-        'Try a new recipe',
-        'Listen to new music genres'
-      ],
-    };
-
-    return suggestions[category.toLowerCase()] ?? suggestions['health']!;
+  void dispose() {
+    _httpClient.close();
   }
 }

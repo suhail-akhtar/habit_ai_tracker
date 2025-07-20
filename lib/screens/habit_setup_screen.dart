@@ -11,10 +11,7 @@ import '../widgets/premium_dialog.dart';
 class HabitSetupScreen extends StatefulWidget {
   final Habit? habitToEdit;
 
-  const HabitSetupScreen({
-    super.key,
-    this.habitToEdit,
-  });
+  const HabitSetupScreen({super.key, this.habitToEdit});
 
   @override
   State<HabitSetupScreen> createState() => _HabitSetupScreenState();
@@ -61,8 +58,9 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title:
-            Text(widget.habitToEdit != null ? 'Edit Habit' : 'Add New Habit'),
+        title: Text(
+          widget.habitToEdit != null ? 'Edit Habit' : 'Add New Habit',
+        ),
         actions: [
           if (widget.habitToEdit != null)
             IconButton(
@@ -109,19 +107,14 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Preview',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Preview', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             Container(
               padding: const EdgeInsets.all(AppTheme.spacingM),
               decoration: BoxDecoration(
                 color: _selectedColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                border: Border.all(
-                  color: _selectedColor.withOpacity(0.3),
-                ),
+                border: Border.all(color: _selectedColor.withOpacity(0.3)),
               ),
               child: Row(
                 children: [
@@ -148,10 +141,9 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                               : _nameController.text,
                           style: AppTheme.titleMedium.copyWith(
                             color: _nameController.text.isEmpty
-                                ? Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withOpacity(0.5)
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface.withOpacity(0.5)
                                 : Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
@@ -182,10 +174,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Basic Information',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Basic Information', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             TextFormField(
               controller: _nameController,
@@ -233,10 +222,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Category',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Category', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             Wrap(
               spacing: AppTheme.spacingS,
@@ -269,10 +255,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Icon',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Icon', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             GridView.builder(
               shrinkWrap: true,
@@ -304,10 +287,9 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                       border: Border.all(
                         color: isSelected
                             ? _selectedColor
-                            : Theme.of(context)
-                                .colorScheme
-                                .outline
-                                .withOpacity(0.3),
+                            : Theme.of(
+                                context,
+                              ).colorScheme.outline.withOpacity(0.3),
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -335,10 +317,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Color',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Color', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             GridView.builder(
               shrinkWrap: true,
@@ -372,11 +351,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                       ),
                     ),
                     child: isSelected
-                        ? const Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: 20,
-                          )
+                        ? const Icon(Icons.check, color: Colors.white, size: 20)
                         : null,
                   ),
                 );
@@ -395,18 +370,12 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Target Frequency',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Target Frequency', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Daily',
-                  style: AppTheme.bodyMedium,
-                ),
+                Text('Daily', style: AppTheme.bodyMedium),
                 Switch(
                   value: _targetFrequency == 1,
                   onChanged: (value) {
@@ -415,10 +384,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                     });
                   },
                 ),
-                Text(
-                  'Weekly',
-                  style: AppTheme.bodyMedium,
-                ),
+                Text('Weekly', style: AppTheme.bodyMedium),
               ],
             ),
             const SizedBox(height: AppTheme.spacingS),
@@ -437,7 +403,9 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   }
 
   Widget _buildActionButtons(
-      HabitProvider habitProvider, UserProvider userProvider) {
+    HabitProvider habitProvider,
+    UserProvider userProvider,
+  ) {
     return Column(
       children: [
         SizedBox(
@@ -452,16 +420,20 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(widget.habitToEdit != null
-                    ? 'Update Habit'
-                    : 'Create Habit'),
+                : Text(
+                    widget.habitToEdit != null
+                        ? 'Update Habit'
+                        : 'Create Habit',
+                  ),
           ),
         ),
         const SizedBox(height: AppTheme.spacingM),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _isLoading
+                ? null
+                : () => _handleCancel(), // 🔧 FIXED: Proper cancel handling
             child: const Text('Cancel'),
           ),
         ),
@@ -469,14 +441,29 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     );
   }
 
+  // 🔧 ADDED: Proper cancel handling method
+  void _handleCancel() {
+    try {
+      Navigator.of(context).pop();
+    } catch (e) {
+      // If pop fails, navigate to dashboard
+      Navigator.of(context).pushReplacementNamed('/dashboard');
+    }
+  }
+
+  // 🔧 FIXED: Proper save habit method
   void _saveHabit(
-      HabitProvider habitProvider, UserProvider userProvider) async {
+    HabitProvider habitProvider,
+    UserProvider userProvider,
+  ) async {
     if (!_formKey.currentState!.validate()) return;
 
     // Check premium limits for new habits
     if (widget.habitToEdit == null && !userProvider.canCreateMoreHabits) {
-      showPremiumDialog(context,
-          feature: 'Create more than ${Constants.freeHabitLimit} habits');
+      showPremiumDialog(
+        context,
+        feature: 'Create more than ${Constants.freeHabitLimit} habits',
+      );
       return;
     }
 
@@ -503,27 +490,30 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
       if (widget.habitToEdit != null) {
         await habitProvider.updateHabit(habit);
         if (mounted) {
-          Helpers.showSnackBar(context, Constants.successHabitUpdated);
+          Helpers.showSnackBar(context, 'Habit updated successfully');
+          Navigator.of(context).pop();
         }
       } else {
         await habitProvider.addHabit(habit);
         if (mounted) {
-          Helpers.showSnackBar(context, Constants.successHabitCreated);
+          Helpers.showSnackBar(context, 'Habit created successfully');
+          Navigator.of(context).pop();
         }
-      }
-
-      if (mounted) {
-        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        Helpers.showSnackBar(context, 'Failed to save habit: $e',
-            isError: true);
+        Helpers.showSnackBar(
+          context,
+          'Failed to save habit: $e',
+          isError: true,
+        );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -538,6 +528,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     );
   }
 
+  // 🔧 FIXED: Proper delete habit method
   void _deleteHabit() async {
     if (widget.habitToEdit?.id == null) return;
 
@@ -548,18 +539,23 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     try {
       await context.read<HabitProvider>().deleteHabit(widget.habitToEdit!.id!);
       if (mounted) {
-        Helpers.showSnackBar(context, Constants.successHabitDeleted);
+        Helpers.showSnackBar(context, 'Habit deleted successfully');
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        Helpers.showSnackBar(context, 'Failed to delete habit: $e',
-            isError: true);
+        Helpers.showSnackBar(
+          context,
+          'Failed to delete habit: $e',
+          isError: true,
+        );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 }

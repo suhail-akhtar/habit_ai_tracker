@@ -1,52 +1,144 @@
 import 'package:flutter/foundation.dart';
-import '../services/speech_service.dart';
+import 'package:flutter/services.dart';
+import '../services/platform_speech_service.dart';
 import '../services/gemini_service.dart';
 import '../models/habit.dart';
 import 'habit_provider.dart';
 
 class VoiceProvider with ChangeNotifier {
-  final SpeechService _speechService = SpeechService();
+  final PlatformSpeechService _speechService = PlatformSpeechService();
   final GeminiService _geminiService = GeminiService();
 
+  // State variables
   bool _isInitialized = false;
   bool _isListening = false;
   String _currentWords = '';
   String _status = 'Not initialized';
   double _confidence = 0.0;
   String? _error;
+  VoiceCommand? _lastCommand;
+  bool _isProcessing = false;
 
+  // Stream subscriptions
+  final List<dynamic> _subscriptions = [];
+
+  // Getters
   bool get isInitialized => _isInitialized;
   bool get isListening => _isListening;
   String get currentWords => _currentWords;
   String get status => _status;
   double get confidence => _confidence;
   String? get error => _error;
+  VoiceCommand? get lastCommand => _lastCommand;
+  bool get isProcessing => _isProcessing;
 
+  /// Initialize voice provider and speech service
   Future<void> initialize() async {
     try {
-      _isInitialized = await _speechService.initialize();
-      _status = _isInitialized ? 'Ready' : 'Failed to initialize';
-
-      // Listen to speech service streams
-      _speechService.wordsStream.listen((words) {
-        _currentWords = words;
-        notifyListeners();
-      });
-
-      _speechService.listeningStream.listen((listening) {
-        _isListening = listening;
-        _status = listening ? 'Listening...' : 'Ready';
-        notifyListeners();
-      });
-
+      _setStatus('Initializing...');
       _clearError();
+
+      _isInitialized = await _speechService.initialize();
+
+      if (_isInitialized) {
+        _setupStreamListeners();
+        _setStatus('Ready');
+
+        if (kDebugMode) {
+          print('VoiceProvider initialized successfully');
+        }
+      } else {
+        _setError('Failed to initialize voice recognition');
+        _setStatus('Failed');
+      }
     } catch (e) {
-      _setError('Failed to initialize voice recognition: $e');
+      _setError('Initialization error: $e');
+      _setStatus('Failed');
+      if (kDebugMode) {
+        print('VoiceProvider initialization failed: $e');
+      }
     }
     notifyListeners();
   }
 
-  Future<void> startListening() async {
+  /// Setup stream listeners for speech service
+  void _setupStreamListeners() {
+    // Words stream
+    _subscriptions.add(
+      _speechService.wordsStream.listen(
+        (words) {
+          _currentWords = words;
+          notifyListeners();
+        },
+        onError: (error) {
+          if (kDebugMode) print('Words stream error: $error');
+        },
+      ),
+    );
+
+    // Listening state stream
+    _subscriptions.add(
+      _speechService.listeningStream.listen(
+        (listening) {
+          _isListening = listening;
+          _setStatus(listening ? 'Listening...' : 'Ready');
+
+          // Provide haptic feedback
+          if (listening) {
+            HapticFeedback.lightImpact();
+          } else {
+            HapticFeedback.selectionClick();
+          }
+
+          notifyListeners();
+        },
+        onError: (error) {
+          if (kDebugMode) print('Listening stream error: $error');
+        },
+      ),
+    );
+
+    // Confidence stream
+    _subscriptions.add(
+      _speechService.confidenceStream.listen(
+        (confidence) {
+          _confidence = confidence;
+          notifyListeners();
+        },
+        onError: (error) {
+          if (kDebugMode) print('Confidence stream error: $error');
+        },
+      ),
+    );
+
+    // Error stream
+    _subscriptions.add(
+      _speechService.errorStream.listen(
+        (error) {
+          // Only show user-facing errors for real problems
+          if (error.type == SpeechErrorType.permissionDenied ||
+              error.type == SpeechErrorType.initializationFailed ||
+              error.type == SpeechErrorType.networkError ||
+              error.type == SpeechErrorType.audioError) {
+            _setError(error.message);
+            _setStatus('Error');
+            HapticFeedback.heavyImpact();
+          } else {
+            // For speech-related errors, just set a gentle status
+            _setStatus('No speech detected - try again');
+            _clearError();
+            HapticFeedback.lightImpact();
+          }
+        },
+        onError: (error) {
+          if (kDebugMode) print('Error stream error: $error');
+        },
+      ),
+    );
+  }
+
+  /// Start listening for voice input
+  Future<void> startListening({Duration? duration, String? locale}) async {
     if (!_isInitialized) {
       await initialize();
     }
@@ -56,121 +148,295 @@ class VoiceProvider with ChangeNotifier {
       return;
     }
 
+    if (_isListening) {
+      if (kDebugMode) print('Already listening');
+      return;
+    }
+
     try {
       _clearError();
-      _status = 'Starting...';
-      notifyListeners();
+      _setStatus(
+        'Preparing microphone...',
+      ); // 🔧 IMPROVED: Better status messages
+      _currentWords = '';
 
-      final result = await _speechService.startListening();
+      // Provide haptic feedback
+      HapticFeedback.lightImpact();
 
-      if (result != null && result.isNotEmpty) {
+      // Show user instruction
+      _setStatus('Listening... Speak now');
+
+      final result = await _speechService.startListening(
+        listenFor:
+            duration ??
+            const Duration(seconds: 25), // 🔧 INCREASED: Even longer duration
+        localeId: locale,
+      );
+
+      if (result != null && result.isNotEmpty && result != "[Listening...]") {
         _currentWords = result;
-        _status = 'Processing...';
-        notifyListeners();
+        _setStatus('Speech captured! Processing...');
+        HapticFeedback.mediumImpact();
+      } else if (_currentWords.isNotEmpty) {
+        // We have some words from partial results
+        _setStatus('Processing speech...');
+        HapticFeedback.lightImpact();
       } else {
-        _status = 'No speech detected';
-        notifyListeners();
+        _setStatus('No clear speech detected. Please try again.');
+        HapticFeedback.lightImpact();
       }
     } catch (e) {
       _setError('Failed to start listening: $e');
+      HapticFeedback.heavyImpact();
     }
-  }
-
-  void stopListening() {
-    _speechService.stopListening();
-    _status = 'Stopped';
     notifyListeners();
   }
 
-  Future<Map<String, dynamic>> processVoiceInput(
+  /// Stop listening
+  Future<void> stopListening() async {
+    if (!_isListening) return;
+
+    try {
+      await _speechService.stopListening();
+      HapticFeedback.selectionClick();
+      _setStatus('Stopped');
+    } catch (e) {
+      _setError('Failed to stop listening: $e');
+    }
+    notifyListeners();
+  }
+
+  /// Cancel current listening session
+  Future<void> cancelListening() async {
+    if (!_isListening) return;
+
+    try {
+      await _speechService.cancel();
+      _currentWords = '';
+      _confidence = 0.0;
+      HapticFeedback.lightImpact();
+      _setStatus('Cancelled');
+    } catch (e) {
+      _setError('Failed to cancel listening: $e');
+    }
+    notifyListeners();
+  }
+
+  /// Process voice input with AI
+  Future<VoiceCommand?> processVoiceInput(
     String voiceText,
     List<Habit> userHabits,
   ) async {
+    if (voiceText.trim().isEmpty) return null;
+
     try {
-      _status = 'Processing with AI...';
-      notifyListeners();
+      _setProcessing(true);
+      _setStatus('Processing with AI...');
 
-      final result =
-          await _geminiService.processVoiceInput(voiceText, userHabits);
+      final result = await _geminiService.processVoiceInput(
+        voiceText,
+        userHabits,
+      );
 
-      _confidence = result['confidence'] ?? 0.0;
-      _status = 'Processed';
+      final command = VoiceCommand.fromMap(result);
+      _lastCommand = command;
+
+      _confidence = command.confidence;
+      _setStatus('Processed');
       _clearError();
 
-      notifyListeners();
-      return result;
+      if (command.confidence < 0.6) {
+        _setStatus('Low confidence - please try again');
+        HapticFeedback.heavyImpact();
+      } else {
+        HapticFeedback.mediumImpact();
+      }
+
+      return command;
     } catch (e) {
       _setError('Failed to process voice input: $e');
-      return {
-        'habit': null,
-        'action': 'none',
-        'confidence': 0.0,
-        'note': null,
-      };
+      HapticFeedback.heavyImpact();
+      return null;
+    } finally {
+      _setProcessing(false);
+      notifyListeners();
     }
   }
 
-  Future<void> executeVoiceCommand(
-    Map<String, dynamic> command,
+  /// Execute voice command
+  Future<bool> executeVoiceCommand(
+    VoiceCommand command,
     HabitProvider habitProvider,
   ) async {
     try {
-      final habitName = command['habit'] as String?;
-      final action = command['action'] as String?;
-      final note = command['note'] as String?;
-
-      if (habitName == null || action == null || action == 'none') {
-        _setError('Could not understand the command');
-        return;
+      if (command.habitName == null || command.action == VoiceAction.none) {
+        _setError('Invalid command');
+        return false;
       }
 
       // Find the habit by name
       final habit = habitProvider.habits.firstWhere(
-        (h) => h.name.toLowerCase() == habitName.toLowerCase(),
-        orElse: () => throw Exception('Habit not found'),
+        (h) => h.name.toLowerCase() == command.habitName!.toLowerCase(),
+        orElse: () => throw Exception('Habit "${command.habitName}" not found'),
       );
 
-      if (action == 'completed') {
-        await habitProvider.logHabitCompletion(
-          habit.id!,
-          note: note,
-          inputMethod: 'voice',
-        );
-        _status = 'Habit logged successfully';
-      } else if (action == 'skipped') {
-        await habitProvider.logHabitSkip(
-          habit.id!,
-          note: note,
-        );
-        _status = 'Habit skip logged';
+      _setStatus('Executing command...');
+
+      switch (command.action) {
+        case VoiceAction.completed:
+          await habitProvider.logHabitCompletion(
+            habit.id!,
+            note: command.note,
+            inputMethod: 'voice',
+          );
+          _setStatus('✅ Habit completed successfully');
+          HapticFeedback.heavyImpact();
+          break;
+
+        case VoiceAction.skipped:
+          await habitProvider.logHabitSkip(habit.id!, note: command.note);
+          _setStatus('⏭️ Habit skip logged');
+          HapticFeedback.mediumImpact();
+          break;
+
+        case VoiceAction.none:
+          _setError('No action specified');
+          return false;
       }
 
       _clearError();
-      notifyListeners();
+      return true;
     } catch (e) {
-      _setError('Failed to execute voice command: $e');
+      _setError('Failed to execute command: $e');
+      HapticFeedback.heavyImpact();
+      return false;
+    } finally {
+      notifyListeners();
     }
   }
 
+  /// Get available languages
   Future<List<String>> getAvailableLanguages() async {
     if (!_isInitialized) return [];
-    return await _speechService.getAvailableLanguages();
+
+    try {
+      return await _speechService.getAvailableLanguages();
+    } catch (e) {
+      _setError('Failed to get languages: $e');
+      return [];
+    }
+  }
+
+  /// Clear current words
+  void clearWords() {
+    _currentWords = '';
+    _confidence = 0.0;
+    _lastCommand = null;
+    notifyListeners();
+  }
+
+  /// Check if speech recognition is supported
+  Future<bool> get isSupported async {
+    try {
+      return await _speechService.hasRecognitionSupport;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Private helper methods
+  void _setStatus(String status) {
+    _status = status;
   }
 
   void _setError(String error) {
     _error = error;
     _status = 'Error: $error';
-    notifyListeners();
   }
 
   void _clearError() {
     _error = null;
-    notifyListeners();
+  }
+
+  void _setProcessing(bool processing) {
+    _isProcessing = processing;
   }
 
   @override
   void dispose() {
-    _speechService.dispose();
+    // Cancel all subscriptions
+    for (final subscription in _subscriptions) {
+      try {
+        subscription.cancel();
+      } catch (e) {
+        if (kDebugMode) print('Error canceling subscription: $e');
+      }
+    }
+    _subscriptions.clear();
+
+    // Dispose services
+    try {
+      _speechService.dispose();
+    } catch (e) {
+      if (kDebugMode) print('Error disposing services: $e');
+    }
+
     super.dispose();
   }
 }
+
+/// Voice command model
+class VoiceCommand {
+  final String? habitName;
+  final VoiceAction action;
+  final double confidence;
+  final String? note;
+  final DateTime timestamp;
+
+  const VoiceCommand({
+    this.habitName,
+    required this.action,
+    required this.confidence,
+    this.note,
+    required this.timestamp,
+  });
+
+  factory VoiceCommand.fromMap(Map<String, dynamic> map) {
+    return VoiceCommand(
+      habitName: map['habit'],
+      action: _parseAction(map['action']),
+      confidence: (map['confidence'] ?? 0.0).toDouble(),
+      note: map['note'],
+      timestamp: DateTime.now(),
+    );
+  }
+
+  static VoiceAction _parseAction(String? action) {
+    switch (action?.toLowerCase()) {
+      case 'completed':
+        return VoiceAction.completed;
+      case 'skipped':
+        return VoiceAction.skipped;
+      default:
+        return VoiceAction.none;
+    }
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'habitName': habitName,
+      'action': action.name,
+      'confidence': confidence,
+      'note': note,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+
+  @override
+  String toString() {
+    return 'VoiceCommand(habit: $habitName, action: $action, confidence: $confidence)';
+  }
+}
+
+/// Voice action enum
+enum VoiceAction { completed, skipped, none }
