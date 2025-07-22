@@ -4,11 +4,13 @@ import '../models/habit.dart';
 import '../models/habit_log.dart';
 import '../models/ai_insight.dart';
 import '../models/user_settings.dart';
+import '../models/notification_settings.dart';
 
 class DatabaseService {
   static Database? _database;
   static const String _databaseName = 'habit_tracker.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion =
+      2; // 🔔 UPDATED: Version 2 for notifications
 
   Future<Database> get database async {
     _database ??= await _initDB();
@@ -75,22 +77,71 @@ class DatabaseService {
       )
     ''');
 
+    // 🔔 NEW: Notification settings table
+    await db.execute('''
+      CREATE TABLE notification_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        time_hour INTEGER NOT NULL,
+        time_minute INTEGER NOT NULL,
+        days_of_week TEXT DEFAULT '1,2,3,4,5,6,7',
+        type TEXT DEFAULT 'simple',
+        repetition TEXT DEFAULT 'daily',
+        is_enabled INTEGER DEFAULT 1,
+        habit_ids TEXT DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        next_scheduled_time TEXT
+      )
+    ''');
+
     // Create indexes for better performance
     await db.execute(
-        'CREATE INDEX idx_habit_logs_habit_id ON habit_logs(habit_id)');
+      'CREATE INDEX idx_habit_logs_habit_id ON habit_logs(habit_id)',
+    );
     await db.execute(
-        'CREATE INDEX idx_habit_logs_completed_at ON habit_logs(completed_at)');
+      'CREATE INDEX idx_habit_logs_completed_at ON habit_logs(completed_at)',
+    );
     await db.execute(
-        'CREATE INDEX idx_ai_insights_user_id ON ai_insights(user_id)');
+      'CREATE INDEX idx_ai_insights_user_id ON ai_insights(user_id)',
+    );
     await db.execute(
-        'CREATE INDEX idx_ai_insights_expires_at ON ai_insights(expires_at)');
+      'CREATE INDEX idx_ai_insights_expires_at ON ai_insights(expires_at)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_notification_settings_enabled ON notification_settings(is_enabled)',
+    ); // 🔔 NEW
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Handle database upgrades in future versions
+    if (oldVersion < 2) {
+      // 🔔 ADD: Notification settings table for existing databases
+      await db.execute('''
+        CREATE TABLE notification_settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          time_hour INTEGER NOT NULL,
+          time_minute INTEGER NOT NULL,
+          days_of_week TEXT DEFAULT '1,2,3,4,5,6,7',
+          type TEXT DEFAULT 'simple',
+          repetition TEXT DEFAULT 'daily',
+          is_enabled INTEGER DEFAULT 1,
+          habit_ids TEXT DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          next_scheduled_time TEXT
+        )
+      ''');
+
+      await db.execute(
+        'CREATE INDEX idx_notification_settings_enabled ON notification_settings(is_enabled)',
+      );
+    }
   }
 
-  // Habit CRUD operations
+  // Habit CRUD operations (existing - unchanged)
   Future<int> createHabit(Habit habit) async {
     final db = await database;
     return await db.insert('habits', habit.toMap());
@@ -136,14 +187,10 @@ class DatabaseService {
 
   Future<int> deleteHabit(int id) async {
     final db = await database;
-    return await db.delete(
-      'habits',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('habits', where: 'id = ?', whereArgs: [id]);
   }
 
-  // Habit log operations
+  // Habit log operations (existing - unchanged)
   Future<int> logHabit(HabitLog habitLog) async {
     final db = await database;
     return await db.insert('habit_logs', habitLog.toMap());
@@ -177,7 +224,8 @@ class DatabaseService {
 
   Future<int> getHabitStreak(int habitId) async {
     final db = await database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT COUNT(*) as streak FROM (
         SELECT DATE(completed_at) as log_date 
         FROM habit_logs 
@@ -193,12 +241,77 @@ class DatabaseService {
           ORDER BY log_date DESC
         )
       ) || ' days')
-    ''', [habitId, habitId]);
+    ''',
+      [habitId, habitId],
+    );
 
     return result.first['streak'] as int;
   }
 
-  // AI insights operations
+  // 🔔 NEW: Notification settings CRUD operations
+  Future<int> createNotificationSetting(
+    NotificationSettings notification,
+  ) async {
+    final db = await database;
+    return await db.insert('notification_settings', notification.toMap());
+  }
+
+  Future<List<NotificationSettings>> getNotificationSettings({
+    bool enabledOnly = false,
+  }) async {
+    final db = await database;
+    final result = await db.query(
+      'notification_settings',
+      where: enabledOnly ? 'is_enabled = ?' : null,
+      whereArgs: enabledOnly ? [1] : null,
+      orderBy: 'created_at DESC',
+    );
+    return result.map((map) => NotificationSettings.fromMap(map)).toList();
+  }
+
+  Future<NotificationSettings?> getNotificationSetting(int id) async {
+    final db = await database;
+    final result = await db.query(
+      'notification_settings',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return result.isNotEmpty
+        ? NotificationSettings.fromMap(result.first)
+        : null;
+  }
+
+  Future<int> updateNotificationSetting(
+    NotificationSettings notification,
+  ) async {
+    final db = await database;
+    return await db.update(
+      'notification_settings',
+      notification.toMap(),
+      where: 'id = ?',
+      whereArgs: [notification.id],
+    );
+  }
+
+  Future<int> deleteNotificationSetting(int id) async {
+    final db = await database;
+    return await db.delete(
+      'notification_settings',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> getNotificationCount({bool enabledOnly = false}) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM notification_settings${enabledOnly ? ' WHERE is_enabled = 1' : ''}',
+    );
+    return result.first['count'] as int;
+  }
+
+  // AI insights operations (existing - unchanged)
   Future<int> saveAIInsight(AIInsight insight) async {
     final db = await database;
     return await db.insert('ai_insights', insight.toMap());
@@ -225,7 +338,7 @@ class DatabaseService {
     );
   }
 
-  // User settings operations
+  // User settings operations (existing - unchanged)
   Future<int> saveSetting(UserSettings setting) async {
     final db = await database;
     return await db.insert(
@@ -250,21 +363,26 @@ class DatabaseService {
     final db = await database;
 
     // Get total habits
-    final totalHabitsResult = await db
-        .rawQuery('SELECT COUNT(*) as count FROM habits WHERE is_active = 1');
+    final totalHabitsResult = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM habits WHERE is_active = 1',
+    );
     final totalHabits = totalHabitsResult.first['count'] as int;
 
     // Get total logs
-    final totalLogsResult =
-        await db.rawQuery('SELECT COUNT(*) as count FROM habit_logs');
+    final totalLogsResult = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM habit_logs',
+    );
     final totalLogs = totalLogsResult.first['count'] as int;
 
     // Get logs for last 7 days
     final sevenDaysAgo = DateTime.now().subtract(Duration(days: 7));
-    final recentLogsResult = await db.rawQuery('''
+    final recentLogsResult = await db.rawQuery(
+      '''
       SELECT COUNT(*) as count FROM habit_logs 
       WHERE completed_at >= ?
-    ''', [sevenDaysAgo.toIso8601String()]);
+    ''',
+      [sevenDaysAgo.toIso8601String()],
+    );
     final recentLogs = recentLogsResult.first['count'] as int;
 
     // Get best streak
@@ -285,8 +403,9 @@ class DatabaseService {
       'totalLogs': totalLogs,
       'recentLogs': recentLogs,
       'bestStreak': bestStreak,
-      'completionRate':
-          totalHabits > 0 ? (recentLogs / (totalHabits * 7) * 100).round() : 0,
+      'completionRate': totalHabits > 0
+          ? (recentLogs / (totalHabits * 7) * 100).round()
+          : 0,
     };
   }
 

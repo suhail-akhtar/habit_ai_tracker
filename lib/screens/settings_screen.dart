@@ -2,20 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/voice_provider.dart';
+import '../services/database_service.dart';
+import '../services/notification_service.dart';
+import '../models/notification_settings.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
+import '../utils/constants.dart';
 import '../widgets/premium_dialog.dart';
+import '../screens/notification_setup_screen.dart';
 import '../config/app_config.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final DatabaseService _databaseService = DatabaseService();
+  List<NotificationSettings> _notifications = [];
+  bool _isLoadingNotifications = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() => _isLoadingNotifications = true);
+    try {
+      _notifications = await _databaseService.getNotificationSettings();
+    } catch (e) {
+      print('Failed to load notifications: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingNotifications = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: Consumer2<UserProvider, VoiceProvider>(
         builder: (context, userProvider, voiceProvider, child) {
           return SingleChildScrollView(
@@ -25,11 +54,11 @@ class SettingsScreen extends StatelessWidget {
               children: [
                 _buildAccountSection(context, userProvider),
                 const SizedBox(height: AppTheme.spacingL),
+                _buildNotificationSection(context, userProvider), // 🔔 NEW
+                const SizedBox(height: AppTheme.spacingL),
                 _buildAppearanceSection(context, userProvider),
                 const SizedBox(height: AppTheme.spacingL),
                 _buildVoiceSection(context, userProvider, voiceProvider),
-                const SizedBox(height: AppTheme.spacingL),
-                _buildNotificationsSection(context, userProvider),
                 const SizedBox(height: AppTheme.spacingL),
                 _buildDataSection(context, userProvider),
                 const SizedBox(height: AppTheme.spacingL),
@@ -49,10 +78,7 @@ class SettingsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Account',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Account', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             ListTile(
               leading: CircleAvatar(
@@ -72,10 +98,7 @@ class SettingsScreen extends StatelessWidget {
                     : '${userProvider.remainingFreeHabits} habits remaining',
               ),
               trailing: userProvider.isPremium
-                  ? Icon(
-                      Icons.star,
-                      color: AppTheme.warningColor,
-                    )
+                  ? Icon(Icons.star, color: AppTheme.warningColor)
                   : TextButton(
                       onPressed: () => showPremiumDialog(context),
                       child: const Text('Upgrade'),
@@ -96,18 +119,285 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAppearanceSection(
-      BuildContext context, UserProvider userProvider) {
+  // 🔔 NEW: Notification management section
+  Widget _buildNotificationSection(
+    BuildContext context,
+    UserProvider userProvider,
+  ) {
+    final notificationLimit = userProvider.isPremium ? 20 : 3;
+    final currentCount = _notifications.length;
+    final canAddMore = currentCount < notificationLimit;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Appearance',
-              style: AppTheme.titleMedium,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Notifications', style: AppTheme.titleMedium),
+                if (canAddMore)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () => _addNotification(userProvider),
+                  ),
+              ],
             ),
+            const SizedBox(height: AppTheme.spacingS),
+            Text(
+              'Reminders: $currentCount/$notificationLimit',
+              style: AppTheme.bodySmall.copyWith(
+                color: currentCount >= notificationLimit
+                    ? AppTheme.errorColor
+                    : Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+
+            if (_isLoadingNotifications)
+              const Center(child: CircularProgressIndicator())
+            else if (_notifications.isEmpty)
+              _buildEmptyNotificationState(userProvider)
+            else
+              ..._notifications.map(
+                (notification) =>
+                    _buildNotificationItem(notification, userProvider),
+              ),
+
+            if (!canAddMore && !userProvider.isPremium) ...[
+              const SizedBox(height: AppTheme.spacingM),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppTheme.spacingS),
+                decoration: BoxDecoration(
+                  color: AppTheme.warningColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusS),
+                  border: Border.all(
+                    color: AppTheme.warningColor.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info, color: AppTheme.warningColor, size: 16),
+                    const SizedBox(width: AppTheme.spacingS),
+                    Expanded(
+                      child: Text(
+                        'Upgrade to Premium for up to 20 notifications',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: AppTheme.warningColor,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => showPremiumDialog(
+                        context,
+                        feature: 'More notifications (up to 20)',
+                      ),
+                      child: Text(
+                        'Upgrade',
+                        style: TextStyle(color: AppTheme.warningColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyNotificationState(UserProvider userProvider) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.spacingL),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.notifications_none,
+            size: 48,
+            color: Theme.of(context).colorScheme.outline,
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+          Text(
+            'No notifications set up',
+            style: AppTheme.titleMedium.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+          Text(
+            'Create reminders to stay on track with your habits',
+            style: AppTheme.bodySmall.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppTheme.spacingM),
+          ElevatedButton.icon(
+            onPressed: () => _addNotification(userProvider),
+            icon: const Icon(Icons.add),
+            label: const Text('Create Notification'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationItem(
+    NotificationSettings notification,
+    UserProvider userProvider,
+  ) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(AppTheme.spacingS),
+          decoration: BoxDecoration(
+            color: notification.isEnabled
+                ? AppTheme.successColor.withOpacity(0.1)
+                : Theme.of(context).colorScheme.outline.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(AppTheme.radiusS),
+          ),
+          child: Icon(
+            _getNotificationTypeIcon(notification.type),
+            color: notification.isEnabled
+                ? AppTheme.successColor
+                : Theme.of(context).colorScheme.outline,
+            size: 20,
+          ),
+        ),
+        title: Text(
+          notification.title.isEmpty ? 'Habit Reminder' : notification.title,
+          style: AppTheme.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${notification.timeString} • ${notification.repetitionDisplayName}',
+              style: AppTheme.bodySmall,
+            ),
+            if (notification.hasHabits)
+              Text(
+                '${notification.habitIds.length} habit${notification.habitIds.length > 1 ? 's' : ''} linked',
+                style: AppTheme.bodySmall.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Switch(
+              value: notification.isEnabled,
+              onChanged: (value) => _toggleNotification(notification, value),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => _editNotification(notification),
+            ),
+          ],
+        ),
+        onTap: () => _editNotification(notification),
+      ),
+    );
+  }
+
+  IconData _getNotificationTypeIcon(NotificationType type) {
+    switch (type) {
+      case NotificationType.simple:
+        return Icons.notifications;
+      case NotificationType.ringing:
+        return Icons.notifications_active;
+      case NotificationType.alarm:
+        return Icons.alarm;
+    }
+  }
+
+  void _addNotification(UserProvider userProvider) async {
+    if (!userProvider.isPremium && _notifications.length >= 3) {
+      showPremiumDialog(context, feature: 'More than 3 notifications');
+      return;
+    }
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NotificationSetupScreen()),
+    );
+
+    if (result == true) {
+      _loadNotifications();
+    }
+  }
+
+  void _editNotification(NotificationSettings notification) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            NotificationSetupScreen(notification: notification),
+      ),
+    );
+
+    if (result == true) {
+      _loadNotifications();
+    }
+  }
+
+  void _toggleNotification(
+    NotificationSettings notification,
+    bool enabled,
+  ) async {
+    try {
+      final updatedNotification = notification.copyWith(
+        isEnabled: enabled,
+        updatedAt: DateTime.now(),
+      );
+
+      await _databaseService.updateNotificationSetting(updatedNotification);
+
+      if (enabled) {
+        await NotificationService().scheduleNotification(updatedNotification);
+      } else {
+        await NotificationService().cancelNotification(notification.id!);
+      }
+
+      _loadNotifications();
+
+      Helpers.showSnackBar(
+        context,
+        enabled ? 'Notification enabled' : 'Notification disabled',
+      );
+    } catch (e) {
+      Helpers.showSnackBar(
+        context,
+        'Failed to update notification: $e',
+        isError: true,
+      );
+    }
+  }
+
+  Widget _buildAppearanceSection(
+    BuildContext context,
+    UserProvider userProvider,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Appearance', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             ListTile(
               leading: const Icon(Icons.palette),
@@ -132,18 +422,18 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVoiceSection(BuildContext context, UserProvider userProvider,
-      VoiceProvider voiceProvider) {
+  Widget _buildVoiceSection(
+    BuildContext context,
+    UserProvider userProvider,
+    VoiceProvider voiceProvider,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Voice & AI',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Voice & AI', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             ListTile(
               leading: const Icon(Icons.mic),
@@ -165,8 +455,10 @@ class SettingsScreen extends StatelessWidget {
               leading: const Icon(Icons.language),
               title: const Text('Voice Language'),
               subtitle: Text(
-                userProvider.getSetting('voice_language',
-                    defaultValue: 'English (US)'),
+                userProvider.getSetting(
+                  'voice_language',
+                  defaultValue: 'English (US)',
+                ),
               ),
               onTap: () =>
                   _showLanguageDialog(context, userProvider, voiceProvider),
@@ -177,66 +469,12 @@ class SettingsScreen extends StatelessWidget {
               title: const Text('AI Features'),
               subtitle: const Text('Manage AI-powered insights'),
               trailing: Switch(
-                value: userProvider.getBoolSetting('ai_enabled',
-                    defaultValue: true),
+                value: userProvider.getBoolSetting(
+                  'ai_enabled',
+                  defaultValue: true,
+                ),
                 onChanged: (value) {
                   userProvider.updateSetting('ai_enabled', value.toString());
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationsSection(
-      BuildContext context, UserProvider userProvider) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacingM),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Notifications',
-              style: AppTheme.titleMedium,
-            ),
-            const SizedBox(height: AppTheme.spacingM),
-            ListTile(
-              leading: const Icon(Icons.notifications),
-              title: const Text('Habit Reminders'),
-              subtitle: const Text('Get reminded about your habits'),
-              trailing: Switch(
-                value: userProvider.getBoolSetting('notifications_enabled',
-                    defaultValue: true),
-                onChanged: (value) {
-                  userProvider.updateSetting(
-                      'notifications_enabled', value.toString());
-                },
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.schedule),
-              title: const Text('Reminder Time'),
-              subtitle: Text(
-                userProvider.getSetting('reminder_time',
-                    defaultValue: '09:00 AM'),
-              ),
-              onTap: () => _showTimePickerDialog(context, userProvider),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.celebration),
-              title: const Text('Achievement Notifications'),
-              subtitle: const Text('Celebrate your streaks and milestones'),
-              trailing: Switch(
-                value: userProvider.getBoolSetting('achievement_notifications',
-                    defaultValue: true),
-                onChanged: (value) {
-                  userProvider.updateSetting(
-                      'achievement_notifications', value.toString());
                 },
               ),
             ),
@@ -253,21 +491,22 @@ class SettingsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Data & Privacy',
-              style: AppTheme.titleMedium,
-            ),
+            Text('Data & Privacy', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             ListTile(
               leading: const Icon(Icons.analytics),
               title: const Text('Analytics'),
               subtitle: const Text('Help improve the app with usage data'),
               trailing: Switch(
-                value: userProvider.getBoolSetting('analytics_enabled',
-                    defaultValue: true),
+                value: userProvider.getBoolSetting(
+                  'analytics_enabled',
+                  defaultValue: true,
+                ),
                 onChanged: (value) {
                   userProvider.updateSetting(
-                      'analytics_enabled', value.toString());
+                    'analytics_enabled',
+                    value.toString(),
+                  );
                 },
               ),
             ),
@@ -303,8 +542,10 @@ class SettingsScreen extends StatelessWidget {
             ),
             const Divider(),
             ListTile(
-              leading:
-                  const Icon(Icons.delete_forever, color: AppTheme.errorColor),
+              leading: const Icon(
+                Icons.delete_forever,
+                color: AppTheme.errorColor,
+              ),
               title: const Text('Clear All Data'),
               subtitle: const Text('Permanently delete all your data'),
               onTap: () => _showClearDataDialog(context),
@@ -322,10 +563,7 @@ class SettingsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'About',
-              style: AppTheme.titleMedium,
-            ),
+            Text('About', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             ListTile(
               leading: const Icon(Icons.info),
@@ -366,7 +604,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  // Helper methods for dialogs and actions
+  // Helper methods for dialogs and actions (existing methods unchanged)
   String _getThemeDisplayName(String themeMode) {
     switch (themeMode.toLowerCase()) {
       case 'light':
@@ -419,8 +657,11 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _showLanguageDialog(BuildContext context, UserProvider userProvider,
-      VoiceProvider voiceProvider) {
+  void _showLanguageDialog(
+    BuildContext context,
+    UserProvider userProvider,
+    VoiceProvider voiceProvider,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -436,15 +677,17 @@ class SettingsScreen extends StatelessWidget {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: languages
-                  .map((language) => RadioListTile<String>(
-                        title: Text(_getLanguageDisplayName(language)),
-                        value: language,
-                        groupValue: userProvider.getSetting('voice_language'),
-                        onChanged: (value) {
-                          userProvider.updateSetting('voice_language', value!);
-                          Navigator.of(context).pop();
-                        },
-                      ))
+                  .map(
+                    (language) => RadioListTile<String>(
+                      title: Text(_getLanguageDisplayName(language)),
+                      value: language,
+                      groupValue: userProvider.getSetting('voice_language'),
+                      onChanged: (value) {
+                        userProvider.updateSetting('voice_language', value!);
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  )
                   .toList(),
             );
           },
@@ -468,21 +711,10 @@ class SettingsScreen extends StatelessWidget {
     return languageMap[languageCode] ?? languageCode;
   }
 
-  void _showTimePickerDialog(
-      BuildContext context, UserProvider userProvider) async {
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-
-    if (time != null) {
-      final timeString = time.format(context);
-      userProvider.updateSetting('reminder_time', timeString);
-    }
-  }
-
   void _showSubscriptionDialog(
-      BuildContext context, UserProvider userProvider) {
+    BuildContext context,
+    UserProvider userProvider,
+  ) {
     Helpers.showConfirmDialog(
       context,
       title: 'Cancel Subscription',
@@ -520,7 +752,8 @@ class SettingsScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Backup Data'),
         content: const Text(
-            'Your data is automatically backed up to the cloud. Last backup: Just now'),
+          'Your data is automatically backed up to the cloud. Last backup: Just now',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -634,6 +867,5 @@ class SettingsScreen extends StatelessWidget {
 
   void _rateApp(BuildContext context) {
     Helpers.showSnackBar(context, 'Thank you! Redirecting to App Store...');
-    // In a real app, this would open the App Store/Play Store
   }
 }

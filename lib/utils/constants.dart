@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class Constants {
   // App Constants
   static const String appName = 'AI Voice Habit Tracker';
-  static const int freeHabitLimit = 3;
+  static const int freeHabitLimit = 3; // 🔧 FIXED: Consistent 3-habit limit
 
   // Category Constants
   static const List<String> habitCategories = [
@@ -73,13 +73,21 @@ class Constants {
   static const String notificationChannelId = 'habit_reminders';
   static const String notificationChannelName = 'Habit Reminders';
 
+  // 🔧 NEW: Premium Enforcement Messages
+  static const String premiumRequiredMessage =
+      'Premium subscription required for this feature';
+  static const String habitLimitMessage =
+      'Free tier allows maximum $freeHabitLimit habits. Upgrade to Premium for unlimited habits.';
+  static const String lastFreeHabitMessage =
+      'This will be your last free habit. Upgrade to Premium for unlimited habits.';
+
   // Error Messages
   static const String errorNoInternet = 'No internet connection available';
   static const String errorVoiceNotAvailable =
       'Voice recognition not available';
   static const String errorDatabaseFailed = 'Database operation failed';
   static const String errorAIProcessing = 'AI processing failed';
-  static const String errorPremiumRequired = 'Premium subscription required';
+  static const String errorPremiumRequired = premiumRequiredMessage;
 
   // Success Messages
   static const String successHabitCreated = 'Habit created successfully';
@@ -101,4 +109,14 @@ class Constants {
     'Priority support',
     'Detailed analytics',
   ];
+
+  // 🔧 NEW: Premium Feature Keys for validation
+  static const String premiumFeatureUnlimitedHabits = 'unlimited_habits';
+  static const String premiumFeatureAdvancedInsights = 'advanced_insights';
+  static const String premiumFeatureDataExport = 'data_export';
+  static const String premiumFeatureCustomThemes = 'custom_themes';
+  static const String premiumFeatureDetailedAnalytics = 'detailed_analytics';
+  static const String premiumFeaturePatternAnalysis = 'pattern_analysis';
+  static const String premiumFeatureAIRecommendations = 'ai_recommendations';
+  static const String premiumFeatureDetailedBreakdown = 'detailed_breakdown';
 }

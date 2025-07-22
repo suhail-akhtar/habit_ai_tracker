@@ -3,6 +3,7 @@ import '../models/habit.dart';
 import '../models/habit_log.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../utils/constants.dart';
 
 class HabitProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -18,17 +19,21 @@ class HabitProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // 🔧 NEW: Get current habit count
-  int get habitCount => _habits.length;
+  // 🔧 ENHANCED: Real-time habit count with database verification
+  int get habitCount {
+    final activeHabits = _habits.where((h) => h.isActive).length;
+
+    if (kDebugMode && activeHabits != _habits.length) {
+      print(
+        '🔍 HabitProvider: Active habits: $activeHabits / Total: ${_habits.length}',
+      );
+    }
+
+    return activeHabits;
+  }
 
   List<Habit> get todayHabits {
-    final today = DateTime.now();
-    final todayStr =
-        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-
-    return _habits.where((habit) {
-      return habit.isActive;
-    }).toList();
+    return _habits.where((habit) => habit.isActive).toList();
   }
 
   int get longestStreak {
@@ -43,6 +48,11 @@ class HabitProvider with ChangeNotifier {
     try {
       _habits = await _databaseService.getActiveHabits();
       await _loadTodayLogs();
+
+      if (kDebugMode) {
+        print('📱 HabitProvider: Loaded ${_habits.length} habits');
+      }
+
       _clearError();
     } catch (e) {
       _setError('Failed to load habits: $e');
@@ -62,18 +72,36 @@ class HabitProvider with ChangeNotifier {
     );
   }
 
-  // 🔧 ENHANCED: Add habit with premium validation
+  // 🔧 ENHANCED: Multi-layer premium validation with database protection
   Future<bool> addHabit(Habit habit, {required bool isPremium}) async {
     _setLoading(true);
     try {
-      // 🔧 NEW: Strict premium enforcement
-      if (!isPremium && _habits.length >= 3) {
-        _setError(
-          'Free tier allows maximum 3 habits. Upgrade to Premium for unlimited habits.',
-        );
+      // 🔧 LAYER 1: In-memory validation
+      final currentActiveCount = habitCount;
+
+      if (!isPremium && currentActiveCount >= Constants.freeHabitLimit) {
+        _setError(Constants.habitLimitMessage);
+        if (kDebugMode) {
+          print(
+            '🚫 HabitProvider: Rejected habit creation - memory check ($currentActiveCount/${Constants.freeHabitLimit})',
+          );
+        }
         return false;
       }
 
+      // 🔧 LAYER 2: Database validation (double-check)
+      final databaseHabits = await _databaseService.getActiveHabits();
+      if (!isPremium && databaseHabits.length >= Constants.freeHabitLimit) {
+        _setError(Constants.habitLimitMessage);
+        if (kDebugMode) {
+          print(
+            '🚫 HabitProvider: Rejected habit creation - database check (${databaseHabits.length}/${Constants.freeHabitLimit})',
+          );
+        }
+        return false;
+      }
+
+      // 🔧 LAYER 3: Create habit with timestamp validation
       final habitWithId = habit.copyWith(
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -82,13 +110,37 @@ class HabitProvider with ChangeNotifier {
       final id = await _databaseService.createHabit(habitWithId);
       final newHabit = habitWithId.copyWith(id: id);
 
+      // 🔧 LAYER 4: Post-creation validation
+      final updatedHabits = await _databaseService.getActiveHabits();
+      if (!isPremium && updatedHabits.length > Constants.freeHabitLimit) {
+        // Rollback - this should never happen but is a safety measure
+        await _databaseService.deleteHabit(id);
+        _setError('Safety limit exceeded. Habit creation cancelled.');
+        if (kDebugMode) {
+          print(
+            '🚨 HabitProvider: Emergency rollback - post-creation limit exceeded',
+          );
+        }
+        return false;
+      }
+
+      // 🔧 SUCCESS: Update local state
       _habits.insert(0, newHabit);
       _clearError();
+
+      if (kDebugMode) {
+        print(
+          '✅ HabitProvider: Successfully created habit "${newHabit.name}" ($habitCount/${isPremium ? "∞" : Constants.freeHabitLimit})',
+        );
+      }
 
       notifyListeners();
       return true;
     } catch (e) {
       _setError('Failed to add habit: $e');
+      if (kDebugMode) {
+        print('❌ HabitProvider: Habit creation failed: $e');
+      }
       return false;
     } finally {
       _setLoading(false);
@@ -104,6 +156,11 @@ class HabitProvider with ChangeNotifier {
       final index = _habits.indexWhere((h) => h.id == habit.id);
       if (index != -1) {
         _habits[index] = updatedHabit;
+
+        if (kDebugMode) {
+          print('📝 HabitProvider: Updated habit "${updatedHabit.name}"');
+        }
+
         notifyListeners();
       }
 
@@ -115,11 +172,21 @@ class HabitProvider with ChangeNotifier {
     }
   }
 
+  // 🔧 ENHANCED: Safe deletion with count tracking
   Future<void> deleteHabit(int habitId) async {
     _setLoading(true);
     try {
+      final habitToDelete = _habits.firstWhere((h) => h.id == habitId);
+
       await _databaseService.deleteHabit(habitId);
       _habits.removeWhere((habit) => habit.id == habitId);
+
+      if (kDebugMode) {
+        print(
+          '🗑️ HabitProvider: Deleted habit "${habitToDelete.name}" ($habitCount remaining)',
+        );
+      }
+
       _clearError();
       notifyListeners();
     } catch (e) {
@@ -129,12 +196,28 @@ class HabitProvider with ChangeNotifier {
     }
   }
 
+  // 🔧 ENHANCED: Validate habit logging permissions
   Future<void> logHabitCompletion(
     int habitId, {
     String? note,
     String inputMethod = 'manual',
+    bool isPremium = false,
   }) async {
     try {
+      // 🔧 NEW: Validate habit exists and is active
+      final habit = _habits.firstWhere(
+        (h) => h.id == habitId && h.isActive,
+        orElse: () => throw Exception('Habit not found or inactive'),
+      );
+
+      // 🔧 NEW: For voice input, ensure habit still belongs to valid set
+      if (inputMethod == 'voice' && !isPremium) {
+        final currentActiveCount = habitCount;
+        if (currentActiveCount > Constants.freeHabitLimit) {
+          throw Exception('Voice logging unavailable - habit limit exceeded');
+        }
+      }
+
       final habitLog = HabitLog(
         habitId: habitId,
         completedAt: DateTime.now(),
@@ -148,19 +231,32 @@ class HabitProvider with ChangeNotifier {
       // Check for streak achievements
       final streak = await _databaseService.getHabitStreak(habitId);
       if (streak > 0 && streak % 7 == 0) {
-        final habit = _habits.firstWhere((h) => h.id == habitId);
         await _notificationService.showStreakAchievement(habit.name, streak);
+      }
+
+      if (kDebugMode) {
+        print(
+          '✅ HabitProvider: Logged completion for "${habit.name}" via $inputMethod',
+        );
       }
 
       _clearError();
       notifyListeners();
     } catch (e) {
       _setError('Failed to log habit: $e');
+      if (kDebugMode) {
+        print('❌ HabitProvider: Failed to log habit completion: $e');
+      }
     }
   }
 
   Future<void> logHabitSkip(int habitId, {String? note}) async {
     try {
+      final habit = _habits.firstWhere(
+        (h) => h.id == habitId && h.isActive,
+        orElse: () => throw Exception('Habit not found or inactive'),
+      );
+
       final habitLog = HabitLog(
         habitId: habitId,
         completedAt: DateTime.now(),
@@ -171,6 +267,10 @@ class HabitProvider with ChangeNotifier {
       await _databaseService.logHabit(habitLog);
       await _loadTodayLogs();
 
+      if (kDebugMode) {
+        print('⏭️ HabitProvider: Logged skip for "${habit.name}"');
+      }
+
       _clearError();
       notifyListeners();
     } catch (e) {
@@ -178,7 +278,16 @@ class HabitProvider with ChangeNotifier {
     }
   }
 
+  // 🔧 ENHANCED: Validate habit completion with active status check
   bool isHabitCompletedToday(int habitId) {
+    // Ensure habit is still active
+    final habit = _habits.firstWhere(
+      (h) => h.id == habitId,
+      orElse: () => throw Exception('Habit not found'),
+    );
+
+    if (!habit.isActive) return false;
+
     final today = DateTime.now();
     final todayStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
@@ -197,6 +306,51 @@ class HabitProvider with ChangeNotifier {
 
   Future<List<HabitLog>> getHabitHistory(int habitId, {int limit = 30}) async {
     return await _databaseService.getHabitLogs(habitId, limit: limit);
+  }
+
+  // 🔧 NEW: Validate habit access for premium features
+  bool canAccessHabit(int habitId, {bool isPremium = false}) {
+    final habitIndex = _habits.indexWhere((h) => h.id == habitId && h.isActive);
+    if (habitIndex == -1) return false;
+
+    // If premium, can access all habits
+    if (isPremium) return true;
+
+    // For free users, only allow access to first N habits (based on creation order)
+    final activeHabits = _habits.where((h) => h.isActive).toList();
+    activeHabits.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    final allowedHabits = activeHabits.take(Constants.freeHabitLimit).toList();
+    return allowedHabits.any((h) => h.id == habitId);
+  }
+
+  // 🔧 NEW: Get habits accessible to current user tier
+  List<Habit> getAccessibleHabits({bool isPremium = false}) {
+    if (isPremium) return todayHabits;
+
+    final activeHabits = todayHabits;
+    activeHabits.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    return activeHabits.take(Constants.freeHabitLimit).toList();
+  }
+
+  // 🔧 NEW: Force reload from database (for critical operations)
+  Future<void> forceReload() async {
+    try {
+      final freshHabits = await _databaseService.getActiveHabits();
+      _habits = freshHabits;
+      await _loadTodayLogs();
+
+      if (kDebugMode) {
+        print(
+          '🔄 HabitProvider: Force reloaded ${_habits.length} habits from database',
+        );
+      }
+
+      notifyListeners();
+    } catch (e) {
+      _setError('Failed to reload habits: $e');
+    }
   }
 
   void _setLoading(bool loading) {
