@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/notification_settings.dart';
-import '../models/habit.dart';
 import '../providers/user_provider.dart';
 import '../providers/habit_provider.dart';
 import '../services/notification_service.dart';
 import '../services/database_service.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
-import '../utils/constants.dart';
 import '../widgets/premium_dialog.dart';
 
 class NotificationSetupScreen extends StatefulWidget {
@@ -124,6 +122,20 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
                 const SizedBox(width: AppTheme.spacingS),
                 Text('Preview', style: AppTheme.titleMedium),
                 const Spacer(),
+                // Test notification button
+                ElevatedButton.icon(
+                  onPressed: _testNotification,
+                  icon: Icon(Icons.play_arrow, size: 16),
+                  label: Text('Test'),
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppTheme.spacingS,
+                      vertical: AppTheme.spacingXS,
+                    ),
+                    minimumSize: Size.zero,
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingS),
                 Switch(
                   value: _isEnabled,
                   onChanged: (value) => setState(() => _isEnabled = value),
@@ -637,6 +649,46 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _testNotification() async {
+    try {
+      // Create a temporary notification for testing
+      final testNotification = NotificationSettings(
+        id: 999999, // Use a special ID for testing
+        title: _titleController.text.isEmpty
+            ? 'Habit Reminder'
+            : _titleController.text,
+        message: _messageController.text.isEmpty
+            ? 'Time to check your habits! 🎯'
+            : _messageController.text,
+        time: _selectedTime,
+        type: _selectedType,
+        repetition: RepetitionType.oneTime,
+        daysOfWeek: [],
+        habitIds: _selectedHabits,
+        isEnabled: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Test notification immediately based on type
+      final success = await NotificationService().testNotification(
+        testNotification,
+      );
+
+      if (success && mounted) {
+        Helpers.showSnackBar(context, 'Test notification triggered! 🎯');
+      }
+    } catch (e) {
+      if (mounted) {
+        Helpers.showSnackBar(
+          context,
+          'Failed to test notification: $e',
+          isError: true,
+        );
       }
     }
   }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Alarm Theme - Full screen, urgent appearance -->
+    <style name="AlarmTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:windowBackground">@color/alarm_background</item>
+        <item name="android:statusBarColor">@color/alarm_background</item>
+        <item name="android:navigationBarColor">@color/alarm_background</item>
+    </style>
+
+    <!-- Ringing Theme - Call-like appearance -->
+    <style name="RingingTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:windowBackground">@color/ringing_background</item>
+        <item name="android:statusBarColor">@color/ringing_background</item>
+        <item name="android:navigationBarColor">@color/ringing_background</item>
+    </style>
+</resources>

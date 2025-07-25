@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Alarm Colors -->
+    <color name="alarm_background">#FF1744</color>
+    <color name="alarm_text_primary">#FFFFFF</color>
+    <color name="alarm_text_secondary">#FFE0E6</color>
+    <color name="alarm_button_dismiss">#FFFFFF</color>
+    <color name="alarm_button_dismiss_text">#FF1744</color>
+    <color name="alarm_button_snooze">#FF5722</color>
+
+    <!-- Ringing Colors -->
+    <color name="ringing_background">#121212</color>
+    <color name="ringing_text_primary">#FFFFFF</color>
+    <color name="ringing_text_secondary">#B0B0B0</color>
+    <color name="ringing_button_answer">#4CAF50</color>
+    <color name="ringing_button_decline">#F44336</color>
+    <color name="ringing_icon_background">#2C2C2C</color>
+</resources>

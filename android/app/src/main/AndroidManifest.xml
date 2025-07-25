@@ -18,11 +18,17 @@
     <!-- Battery optimization bypass -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     
+    <!-- 🔔 NEW: Full-screen alarm/ringing permissions -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    
     <!-- Storage permissions (if needed for caching) -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
                      android:maxSdkVersion="28" />
     <application
-        android:label="habit_ai_tracker"
+        android:label="AI Habit Tracker"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -48,6 +54,37 @@
             </intent-filter>
         </activity>
 
+        <!-- 🔔 NEW: Full-screen Alarm Activity -->
+        <activity
+            android:name=".AlarmActivity"
+            android:exported="false"
+            android:theme="@style/AlarmTheme"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:showOnLockScreen="true"
+            android:turnScreenOn="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="HABIT_ALARM_ACTION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- 🔔 NEW: Call-style Ringing Activity -->
+        <activity
+            android:name=".RingingActivity"
+            android:exported="false"
+            android:theme="@style/RingingTheme"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:showOnLockScreen="true"
+            android:turnScreenOn="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="HABIT_RINGING_ACTION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <!-- Enhanced notification receiver -->
         <receiver 
@@ -67,6 +104,16 @@
             android:enabled="true"
             android:exported="true" />
 
+        <!-- 🔔 NEW: Custom notification receiver for alarm/ringing -->
+        <receiver
+            android:name=".NotificationReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="HABIT_ALARM_TRIGGER" />
+                <action android:name="HABIT_RINGING_TRIGGER" />
+            </intent-filter>
+        </receiver>
             
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
