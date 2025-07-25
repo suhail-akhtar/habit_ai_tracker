@@ -18,6 +18,21 @@ class Helpers {
     return DateFormat('MMM dd, yyyy - HH:mm').format(dateTime);
   }
 
+  static String formatTimeAgo(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
   static String getRelativeTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
@@ -61,9 +76,162 @@ class Helpers {
   }
 
   // Validation Helpers
+  /// Enhanced habit name validation with sanitization
   static bool isValidHabitName(String name) {
-    return name.trim().isNotEmpty &&
-        name.trim().length <= Constants.maxHabitNameLength;
+    String sanitized = sanitizeHabitName(name);
+    if (sanitized.isEmpty) return false;
+    if (sanitized.length < 2) return false; // Minimum length
+    if (sanitized.length > Constants.maxHabitNameLength) return false;
+
+    // Check for suspicious patterns
+    if (_containsSuspiciousContent(sanitized)) return false;
+
+    return true;
+  }
+
+  /// Comprehensive input sanitization for habit names
+  static String sanitizeHabitName(String input) {
+    // Remove HTML tags and script content
+    String sanitized = _removeHtmlTags(input);
+
+    // Remove or escape special characters that could be problematic
+    sanitized = _removeSpecialCharacters(sanitized);
+
+    // Normalize whitespace
+    sanitized = _normalizeWhitespace(sanitized);
+
+    // Trim and limit length
+    sanitized = sanitized.trim();
+    if (sanitized.length > Constants.maxHabitNameLength) {
+      sanitized = sanitized.substring(0, Constants.maxHabitNameLength);
+    }
+
+    return sanitized;
+  }
+
+  /// Sanitize category names
+  static String sanitizeCategory(String input) {
+    String sanitized = _removeHtmlTags(input);
+    sanitized = _removeSpecialCharacters(sanitized);
+    sanitized = _normalizeWhitespace(sanitized);
+    sanitized = sanitized.trim();
+
+    if (sanitized.length > 30) {
+      // Category length limit
+      sanitized = sanitized.substring(0, 30);
+    }
+
+    return sanitized;
+  }
+
+  /// Sanitize notes and descriptions
+  static String sanitizeNotes(String input) {
+    String sanitized = _removeHtmlTags(input);
+    sanitized = _removeSpecialCharacters(sanitized, allowPunctuation: true);
+    sanitized = _normalizeWhitespace(sanitized);
+    sanitized = sanitized.trim();
+
+    if (sanitized.length > Constants.maxNoteLength) {
+      sanitized = sanitized.substring(0, Constants.maxNoteLength);
+    }
+
+    return sanitized;
+  }
+
+  /// Validate category name
+  static bool isValidCategory(String category) {
+    String sanitized = sanitizeCategory(category);
+    if (sanitized.isEmpty) return false;
+    if (sanitized.length < 2) return false;
+    if (sanitized.length > 30) return false;
+
+    return !_containsSuspiciousContent(sanitized);
+  }
+
+  /// Validate notes
+  static bool isValidNotes(String notes) {
+    String sanitized = sanitizeNotes(notes);
+    if (sanitized.length > Constants.maxNoteLength) return false;
+
+    return !_containsSuspiciousContent(sanitized);
+  }
+
+  /// Remove HTML tags and script content
+  static String _removeHtmlTags(String input) {
+    // Remove script tags and their content
+    String result = input.replaceAll(
+      RegExp(
+        r'<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>',
+        caseSensitive: false,
+      ),
+      '',
+    );
+
+    // Remove style tags and their content
+    result = result.replaceAll(
+      RegExp(
+        r'<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>',
+        caseSensitive: false,
+      ),
+      '',
+    );
+
+    // Remove all HTML tags
+    result = result.replaceAll(RegExp(r'<[^>]*>'), '');
+
+    // Decode common HTML entities
+    result = result.replaceAll('&amp;', '&');
+    result = result.replaceAll('&lt;', '<');
+    result = result.replaceAll('&gt;', '>');
+    result = result.replaceAll('&quot;', '"');
+    result = result.replaceAll('&#39;', "'");
+    result = result.replaceAll('&nbsp;', ' ');
+
+    return result;
+  }
+
+  /// Remove potentially dangerous special characters
+  static String _removeSpecialCharacters(
+    String input, {
+    bool allowPunctuation = false,
+  }) {
+    if (allowPunctuation) {
+      // Allow basic punctuation but remove dangerous characters
+      return input.replaceAll(RegExp(r'[<>{}[\]\\`|~^]'), '');
+    } else {
+      // Only allow alphanumeric, spaces, hyphens, underscores, and basic punctuation
+      return input.replaceAll(RegExp(r'[^a-zA-Z0-9\s\-_.,!?]'), '');
+    }
+  }
+
+  /// Normalize whitespace
+  static String _normalizeWhitespace(String input) {
+    // Replace multiple whitespaces with single space
+    String result = input.replaceAll(RegExp(r'\s+'), ' ');
+
+    // Remove leading/trailing whitespace
+    return result.trim();
+  }
+
+  /// Check for suspicious content patterns
+  static bool _containsSuspiciousContent(String input) {
+    String lower = input.toLowerCase();
+
+    // Check for script-like patterns
+    List<String> suspiciousPatterns = [
+      'javascript:',
+      'data:',
+      'vbscript:',
+      'onclick',
+      'onload',
+      'onerror',
+      'eval(',
+      'alert(',
+      'document.',
+      'window.',
+    ];
+
+    return suspiciousPatterns.any((pattern) => lower.contains(pattern));
   }
 
   static bool isValidEmail(String email) {
@@ -228,12 +396,15 @@ class Helpers {
     return 'Very Poor';
   }
 
-  /// Validate voice command input
+  /// Validate voice command input (enhanced)
   static bool isValidVoiceCommand(String input) {
-    if (input.trim().isEmpty) return false;
-    if (input.length < 3) return false;
-    if (input.length > 200) return false;
-    return true;
+    String sanitized = sanitizeNotes(
+      input,
+    ); // Use notes sanitization for voice input
+    if (sanitized.length < 3) return false;
+    if (sanitized.length > 200) return false;
+
+    return !_containsSuspiciousContent(sanitized);
   }
 
   /// Extract habit name from voice text using simple NLP
@@ -265,7 +436,7 @@ class Helpers {
 
   /// Format voice feedback message
   static String formatVoiceFeedback(VoiceCommand command) {
-    if (command.habitName == null) {
+    if (command.habitName == null && command.action != VoiceAction.reminder) {
       return 'Could not identify the habit from your voice input';
     }
 
@@ -274,8 +445,16 @@ class Helpers {
         return '✅ "${command.habitName}" marked as completed!';
       case VoiceAction.skipped:
         return '⏭️ "${command.habitName}" marked as skipped';
+      case VoiceAction.createHabit:
+        return '🆕 Habit "${command.habitName}" created successfully!';
+      case VoiceAction.reminder:
+        if (command.reminderMessage != null) {
+          return '⏰ Voice reminder set: "${command.reminderMessage}"';
+        } else {
+          return '⏰ Voice reminder created successfully!';
+        }
       case VoiceAction.none:
-        return '❓ Unable to determine action for "${command.habitName}"';
+        return '❓ Unable to determine action for "${command.habitName ?? 'your request'}"';
     }
   }
 }

@@ -4,6 +4,16 @@ class Constants {
   // App Constants
   static const String appName = 'AI Voice Habit Tracker';
   static const int freeHabitLimit = 3; // 🔧 FIXED: Consistent 3-habit limit
+  static const int freeReminderLimit =
+      2; // Voice reminders limit for free users
+  static const int maxCustomCategories =
+      10; // Maximum custom categories for premium users
+
+  // AI Chatbot Usage Limits
+  static const int freeChatbotMessages = 3; // Messages per day for free users
+  static const int premiumChatbotMessages =
+      50; // Messages per day for premium users
+  static const Duration chatbotResetPeriod = Duration(hours: 24); // Daily reset
 
   // Category Constants
   static const List<String> habitCategories = [

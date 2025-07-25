@@ -299,6 +299,18 @@ class VoiceProvider with ChangeNotifier {
           HapticFeedback.mediumImpact();
           break;
 
+        case VoiceAction.reminder:
+          // Handle reminder creation - will be implemented in UI layer
+          _setStatus('📅 Reminder command detected');
+          HapticFeedback.mediumImpact();
+          break;
+
+        case VoiceAction.createHabit:
+          // Handle habit creation - will be implemented in UI layer
+          _setStatus('➕ Create habit command detected');
+          HapticFeedback.mediumImpact();
+          break;
+
         case VoiceAction.none:
           _setError('No action specified');
           return false;
@@ -392,6 +404,10 @@ class VoiceCommand {
   final double confidence;
   final String? note;
   final DateTime timestamp;
+  final DateTime? reminderTime;
+  final String? reminderMessage;
+  final String? newHabitName;
+  final String? newHabitCategory;
 
   const VoiceCommand({
     this.habitName,
@@ -399,6 +415,10 @@ class VoiceCommand {
     required this.confidence,
     this.note,
     required this.timestamp,
+    this.reminderTime,
+    this.reminderMessage,
+    this.newHabitName,
+    this.newHabitCategory,
   });
 
   factory VoiceCommand.fromMap(Map<String, dynamic> map) {
@@ -408,6 +428,12 @@ class VoiceCommand {
       confidence: (map['confidence'] ?? 0.0).toDouble(),
       note: map['note'],
       timestamp: DateTime.now(),
+      reminderTime: map['reminder_time'] != null
+          ? DateTime.tryParse(map['reminder_time'])
+          : null,
+      reminderMessage: map['reminder_message'],
+      newHabitName: map['new_habit_name'],
+      newHabitCategory: map['new_habit_category'],
     );
   }
 
@@ -417,6 +443,12 @@ class VoiceCommand {
         return VoiceAction.completed;
       case 'skipped':
         return VoiceAction.skipped;
+      case 'reminder':
+      case 'remind':
+        return VoiceAction.reminder;
+      case 'create':
+      case 'add':
+        return VoiceAction.createHabit;
       default:
         return VoiceAction.none;
     }
@@ -429,6 +461,10 @@ class VoiceCommand {
       'confidence': confidence,
       'note': note,
       'timestamp': timestamp.toIso8601String(),
+      'reminderTime': reminderTime?.toIso8601String(),
+      'reminderMessage': reminderMessage,
+      'newHabitName': newHabitName,
+      'newHabitCategory': newHabitCategory,
     };
   }
 
@@ -439,4 +475,4 @@ class VoiceCommand {
 }
 
 /// Voice action enum
-enum VoiceAction { completed, skipped, none }
+enum VoiceAction { completed, skipped, none, reminder, createHabit }

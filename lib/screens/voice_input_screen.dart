@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // 🔧 ADDED
 import '../providers/voice_provider.dart';
 import '../providers/habit_provider.dart';
+import '../providers/voice_reminder_provider.dart';
+import '../providers/user_provider.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
 import '../widgets/voice_button.dart';
+import '../widgets/premium_dialog.dart';
 
 class VoiceInputScreen extends StatefulWidget {
   const VoiceInputScreen({super.key});
@@ -552,7 +555,8 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
         const SizedBox(height: AppTheme.spacingS),
         Text(
           '• "I completed [habit name]" • "I did [habit name] today"\n'
-          '• "I skipped [habit name]" • "I missed [habit name]"',
+          '• "I skipped [habit name]" • "I missed [habit name]"\n'
+          '• "Remind me to [habit] at [time]" • "Set reminder for [habit]"',
           style: AppTheme.bodySmall.copyWith(
             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
             height: 1.3,
@@ -645,12 +649,28 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
   ) async {
     if (voiceProvider.currentWords.isEmpty) return;
 
+    // 🎤 NEW: Check for voice reminder commands first
+    final reminderData = VoiceReminderProvider.parseVoiceReminder(
+      voiceProvider.currentWords,
+    );
+    if (reminderData != null) {
+      await _handleVoiceReminderCommand(reminderData);
+      return;
+    }
+
     final command = await voiceProvider.processVoiceInput(
       voiceProvider.currentWords,
       habitProvider.habits,
     );
 
     if (command != null && command.confidence > 0.6) {
+      // Handle special commands that don't require habits
+      if (command.action == VoiceAction.reminder ||
+          command.action == VoiceAction.createHabit) {
+        await _handleSpecialVoiceCommand(command);
+        return;
+      }
+
       final success = await voiceProvider.executeVoiceCommand(
         command,
         habitProvider,
@@ -678,6 +698,115 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
         );
       }
     }
+  }
+
+  // 🎤 NEW: Handle voice reminder commands
+  Future<void> _handleVoiceReminderCommand(
+    VoiceReminderData reminderData,
+  ) async {
+    try {
+      final userProvider = context.read<UserProvider>();
+      final voiceReminderProvider = context.read<VoiceReminderProvider>();
+
+      final success = await voiceReminderProvider.createVoiceReminder(
+        message: reminderData.message,
+        reminderTime: reminderData.reminderTime,
+        isPremium: userProvider.isPremium,
+      );
+
+      if (mounted) {
+        if (success) {
+          Helpers.showSnackBar(
+            context,
+            'Voice reminder set for ${_formatDateTime(reminderData.reminderTime)}! 📅',
+            isError: false,
+          );
+          context.read<VoiceProvider>().clearWords();
+        } else {
+          final error = voiceReminderProvider.error;
+          if (error != null && error.contains('Free users')) {
+            showPremiumDialog(context, feature: 'Voice Reminders');
+          } else {
+            Helpers.showSnackBar(
+              context,
+              error ?? 'Failed to create voice reminder',
+              isError: true,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Helpers.showSnackBar(
+          context,
+          'Error creating voice reminder: $e',
+          isError: true,
+        );
+      }
+    }
+  }
+
+  // 🎤 NEW: Handle special voice commands (reminder, create habit)
+  Future<void> _handleSpecialVoiceCommand(VoiceCommand command) async {
+    try {
+      if (command.action == VoiceAction.reminder) {
+        if (command.reminderTime != null && command.reminderMessage != null) {
+          final reminderData = VoiceReminderData(
+            message: command.reminderMessage!,
+            reminderTime: command.reminderTime!,
+          );
+          await _handleVoiceReminderCommand(reminderData);
+        } else {
+          if (mounted) {
+            Helpers.showSnackBar(
+              context,
+              'Unable to parse reminder details. Try: "Remind me to exercise at 7 PM"',
+              isError: true,
+            );
+          }
+        }
+      } else if (command.action == VoiceAction.createHabit) {
+        if (mounted) {
+          Helpers.showSnackBar(
+            context,
+            'Voice habit creation coming soon! Use the + tab for now.',
+            isError: false,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Helpers.showSnackBar(
+          context,
+          'Error handling voice command: $e',
+          isError: true,
+        );
+      }
+    }
+  }
+
+  // Helper method to format DateTime for display
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final target = DateTime(dateTime.year, dateTime.month, dateTime.day);
+
+    String dateStr;
+    if (target == today) {
+      dateStr = 'today';
+    } else if (target == tomorrow) {
+      dateStr = 'tomorrow';
+    } else {
+      dateStr = '${dateTime.month}/${dateTime.day}/${dateTime.year}';
+    }
+
+    final hour = dateTime.hour;
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+
+    return '$dateStr at $displayHour:$minute $period';
   }
 
   void _clearVoiceInput(VoiceProvider voiceProvider) {
@@ -721,6 +850,8 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
             _buildTipItem('⏱️', 'You have 25 seconds to speak'),
             _buildTipItem('✅', 'Say "I completed [exact habit name]"'),
             _buildTipItem('❌', 'Say "I skipped [exact habit name]"'),
+            _buildTipItem('⏰', 'Say "Remind me to [habit] at [time]"'),
+            _buildTipItem('🔔', 'Say "Set reminder for [habit] at 7 PM"'),
             _buildTipItem('🤖', 'Enable auto-process for hands-free operation'),
           ],
         ),
@@ -783,6 +914,12 @@ class VoiceCommandsHelpSheet extends StatelessWidget {
             '"I missed my reading today"',
             '"I didn\'t do my meditation"',
             '"I can\'t do my run today"',
+          ]),
+          _buildCommandSection(context, 'Voice Reminders', [
+            '"Remind me to exercise at 7 PM"',
+            '"Set reminder for meditation at 6 AM"',
+            '"Remind me to drink water at 2 PM"',
+            '"Set a reminder for my workout at 5 PM"',
           ]),
           _buildCommandSection(context, 'Tips for Better Recognition', [
             'Speak clearly and at normal pace',

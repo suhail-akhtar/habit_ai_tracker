@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/habit_provider.dart';
 import '../providers/user_provider.dart';
+import '../providers/custom_category_provider.dart';
 import '../models/habit.dart';
 import '../utils/theme.dart';
 import '../utils/constants.dart';
@@ -35,8 +36,9 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     if (widget.habitToEdit != null) {
       _initializeWithExistingHabit();
     }
-    // Check premium limits on screen load
+    // Load custom categories
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CustomCategoryProvider>().loadCustomCategories();
       _checkPremiumLimitsOnLoad();
     });
   }
@@ -288,12 +290,26 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                 if (value == null || value.trim().isEmpty) {
                   return 'Please enter a habit name';
                 }
-                if (value.trim().length > Constants.maxHabitNameLength) {
-                  return 'Name must be less than ${Constants.maxHabitNameLength} characters';
+
+                // Sanitize and validate the input
+                String sanitized = Helpers.sanitizeHabitName(value);
+                if (!Helpers.isValidHabitName(sanitized)) {
+                  return 'Please enter a valid habit name (2-${Constants.maxHabitNameLength} characters)';
                 }
+
                 return null;
               },
-              onChanged: (value) => setState(() {}),
+              onChanged: (value) {
+                // Auto-sanitize input as user types
+                String sanitized = Helpers.sanitizeHabitName(value);
+                if (sanitized != value) {
+                  _nameController.text = sanitized;
+                  _nameController.selection = TextSelection.fromPosition(
+                    TextPosition(offset: sanitized.length),
+                  );
+                }
+                setState(() {});
+              },
             ),
             const SizedBox(height: AppTheme.spacingM),
             TextFormField(
@@ -304,11 +320,23 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
               ),
               maxLines: 3,
               validator: (value) {
-                if (value != null &&
-                    value.length > Constants.maxHabitDescriptionLength) {
-                  return 'Description must be less than ${Constants.maxHabitDescriptionLength} characters';
+                if (value != null && value.isNotEmpty) {
+                  String sanitized = Helpers.sanitizeNotes(value);
+                  if (!Helpers.isValidNotes(sanitized)) {
+                    return 'Description contains invalid content or exceeds ${Constants.maxHabitDescriptionLength} characters';
+                  }
                 }
                 return null;
+              },
+              onChanged: (value) {
+                // Auto-sanitize description input
+                String sanitized = Helpers.sanitizeNotes(value);
+                if (sanitized != value) {
+                  _descriptionController.text = sanitized;
+                  _descriptionController.selection = TextSelection.fromPosition(
+                    TextPosition(offset: sanitized.length),
+                  );
+                }
               },
             ),
           ],
@@ -318,35 +346,112 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   }
 
   Widget _buildCategorySelection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacingM),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Category', style: AppTheme.titleMedium),
-            const SizedBox(height: AppTheme.spacingM),
-            Wrap(
-              spacing: AppTheme.spacingS,
-              runSpacing: AppTheme.spacingS,
-              children: Constants.habitCategories.map((category) {
-                final isSelected = _selectedCategory == category;
-                return FilterChip(
-                  selected: isSelected,
-                  label: Text(category),
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() {
-                        _selectedCategory = category;
-                      });
-                    }
-                  },
-                );
-              }).toList(),
+    return Consumer<CustomCategoryProvider>(
+      builder: (context, categoryProvider, child) {
+        final customCategories = categoryProvider.customCategories;
+        final allCategories = [...Constants.habitCategories];
+
+        // Add custom categories to the list
+        for (final customCategory in customCategories) {
+          allCategories.add(customCategory.name);
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingM),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Category', style: AppTheme.titleMedium),
+                    if (customCategories.isNotEmpty)
+                      Text(
+                        '${customCategories.length} custom',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+                Wrap(
+                  spacing: AppTheme.spacingS,
+                  runSpacing: AppTheme.spacingS,
+                  children: allCategories.map((category) {
+                    final isSelected = _selectedCategory == category;
+                    final isCustom = customCategories.any(
+                      (c) => c.name == category,
+                    );
+                    final customCategory = isCustom
+                        ? customCategories.firstWhere((c) => c.name == category)
+                        : null;
+
+                    return FilterChip(
+                      selected: isSelected,
+                      label: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isCustom && customCategory != null) ...[
+                            Icon(
+                              Helpers.getHabitIcon(customCategory.iconName),
+                              size: 16,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Helpers.getHabitColor(
+                                      customCategory.colorCode,
+                                    ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(category),
+                        ],
+                      ),
+                      backgroundColor: isCustom && customCategory != null
+                          ? Helpers.getHabitColor(
+                              customCategory.colorCode,
+                            ).withOpacity(0.1)
+                          : null,
+                      selectedColor: isCustom && customCategory != null
+                          ? Helpers.getHabitColor(customCategory.colorCode)
+                          : null,
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() {
+                            _selectedCategory = category;
+                          });
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+                if (customCategories.isEmpty) ...[
+                  const SizedBox(height: AppTheme.spacingS),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Create custom categories in Settings for more options',
+                          style: AppTheme.bodySmall.copyWith(
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -578,13 +683,18 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     });
 
     try {
+      // Sanitize inputs before creating habit
+      final sanitizedName = Helpers.sanitizeHabitName(_nameController.text);
+      final sanitizedDescription = _descriptionController.text.trim().isEmpty
+          ? null
+          : Helpers.sanitizeNotes(_descriptionController.text);
+      final sanitizedCategory = Helpers.sanitizeCategory(_selectedCategory);
+
       final habit = Habit(
         id: widget.habitToEdit?.id,
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty
-            ? null
-            : _descriptionController.text.trim(),
-        category: _selectedCategory,
+        name: sanitizedName,
+        description: sanitizedDescription,
+        category: sanitizedCategory,
         targetFrequency: _targetFrequency,
         colorCode: Helpers.colorToHex(_selectedColor),
         iconName: _selectedIcon,

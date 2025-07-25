@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/voice_provider.dart';
+import '../providers/custom_category_provider.dart';
+import '../providers/voice_reminder_provider.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../models/notification_settings.dart';
+import '../models/voice_reminder.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
 import '../widgets/premium_dialog.dart';
 import '../screens/notification_setup_screen.dart';
+import '../screens/custom_categories_screen.dart';
 import '../config/app_config.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -54,6 +58,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildAccountSection(context, userProvider),
                 const SizedBox(height: AppTheme.spacingL),
                 _buildNotificationSection(context, userProvider), // 🔔 NEW
+                const SizedBox(height: AppTheme.spacingL),
+                _buildCustomCategoriesSection(context, userProvider), // 🎨 NEW
+                const SizedBox(height: AppTheme.spacingL),
+                _buildVoiceRemindersSection(context, userProvider), // 🎤 NEW
                 const SizedBox(height: AppTheme.spacingL),
                 _buildAppearanceSection(context, userProvider),
                 const SizedBox(height: AppTheme.spacingL),
@@ -866,5 +874,354 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _rateApp(BuildContext context) {
     Helpers.showSnackBar(context, 'Thank you! Redirecting to App Store...');
+  }
+
+  // 🎨 NEW: Custom Categories Section
+  Widget _buildCustomCategoriesSection(
+    BuildContext context,
+    UserProvider userProvider,
+  ) {
+    return Consumer<CustomCategoryProvider>(
+      builder: (context, categoryProvider, child) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingM),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.category),
+                    const SizedBox(width: 8),
+                    Text('Custom Categories', style: AppTheme.titleMedium),
+                    const Spacer(),
+                    if (!userProvider.isPremium)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'PREMIUM',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+                ListTile(
+                  leading: Icon(
+                    Icons.palette,
+                    color: userProvider.isPremium
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
+                  ),
+                  title: const Text('Manage Categories'),
+                  subtitle: Text(
+                    userProvider.isPremium
+                        ? 'Create and customize your habit categories'
+                        : 'Create custom categories with icons and colors',
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: userProvider.isPremium
+                      ? () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const CustomCategoriesScreen(),
+                          ),
+                        )
+                      : () => showPremiumDialog(context),
+                ),
+                if (userProvider.isPremium) ...[
+                  const Divider(),
+                  FutureBuilder<int>(
+                    future: Future.value(
+                      categoryProvider.customCategories.length,
+                    ),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return ListTile(
+                        leading: const Icon(Icons.info_outline),
+                        title: Text('$count custom categories created'),
+                        subtitle: const Text(
+                          'Tap above to manage your categories',
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // 🎤 NEW: Voice Reminders Section
+  Widget _buildVoiceRemindersSection(
+    BuildContext context,
+    UserProvider userProvider,
+  ) {
+    return Consumer<VoiceReminderProvider>(
+      builder: (context, reminderProvider, child) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingM),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.record_voice_over),
+                    const SizedBox(width: 8),
+                    Text('Voice Reminders', style: AppTheme.titleMedium),
+                    const Spacer(),
+                    if (!userProvider.isPremium)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'LIMITED',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSecondaryContainer,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+                ListTile(
+                  leading: const Icon(Icons.add_alarm),
+                  title: const Text('Create Voice Reminder'),
+                  subtitle: const Text('Say "Remind me to exercise at 7 PM"'),
+                  trailing: const Icon(Icons.mic),
+                  onTap: () => _showVoiceReminderDialog(
+                    context,
+                    userProvider,
+                    reminderProvider,
+                  ),
+                ),
+                const Divider(),
+                FutureBuilder<List<VoiceReminder>>(
+                  future: Future.value(reminderProvider.reminders),
+                  builder: (context, snapshot) {
+                    final reminders = snapshot.data ?? [];
+                    final reminderCount = reminders.length;
+                    final maxReminders = userProvider.isPremium
+                        ? 'Unlimited'
+                        : '2';
+
+                    return ListTile(
+                      leading: const Icon(Icons.list_alt),
+                      title: const Text('Manage Reminders'),
+                      subtitle: Text(
+                        '$reminderCount reminders ($maxReminders available)',
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios),
+                      onTap: () => _showRemindersList(
+                        context,
+                        reminders,
+                        reminderProvider,
+                      ),
+                    );
+                  },
+                ),
+                if (!userProvider.isPremium) ...[
+                  const Divider(),
+                  ListTile(
+                    leading: Icon(Icons.star, color: AppTheme.warningColor),
+                    title: const Text('Upgrade for Unlimited'),
+                    subtitle: const Text(
+                      'Get unlimited voice reminders with Premium',
+                    ),
+                    onTap: () => showPremiumDialog(context),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showVoiceReminderDialog(
+    BuildContext context,
+    UserProvider userProvider,
+    VoiceReminderProvider reminderProvider,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Voice Reminder'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.mic, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'To create a voice reminder, go to the Voice Input screen and say something like:',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                '"Remind me to exercise at 7 PM"',
+                style: TextStyle(fontStyle: FontStyle.italic),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Navigate to voice input screen
+              Navigator.pushNamed(context, '/voice_input');
+            },
+            child: const Text('Go to Voice Input'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRemindersList(
+    BuildContext context,
+    List<VoiceReminder> reminders,
+    VoiceReminderProvider reminderProvider,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.3,
+        builder: (context, scrollController) => Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Voice Reminders',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: reminders.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.voice_over_off, size: 48),
+                            SizedBox(height: 16),
+                            Text('No voice reminders yet'),
+                            Text('Create one using voice commands!'),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        itemCount: reminders.length,
+                        itemBuilder: (context, index) {
+                          final reminder = reminders[index];
+                          return Card(
+                            child: ListTile(
+                              leading: const Icon(Icons.alarm),
+                              title: Text(reminder.message),
+                              subtitle: Text(
+                                Helpers.formatDateTime(reminder.reminderTime),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete),
+                                onPressed: () => _deleteReminder(
+                                  context,
+                                  reminder,
+                                  reminderProvider,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _deleteReminder(
+    BuildContext context,
+    VoiceReminder reminder,
+    VoiceReminderProvider reminderProvider,
+  ) {
+    Helpers.showConfirmDialog(
+      context,
+      title: 'Delete Reminder',
+      content: 'Are you sure you want to delete this voice reminder?',
+      onConfirm: () async {
+        try {
+          await reminderProvider.deleteVoiceReminder(reminder.id!);
+          if (context.mounted) {
+            Helpers.showSnackBar(context, 'Voice reminder deleted');
+          }
+        } catch (e) {
+          if (context.mounted) {
+            Helpers.showSnackBar(
+              context,
+              'Failed to delete reminder',
+              isError: true,
+            );
+          }
+        }
+      },
+    );
   }
 }

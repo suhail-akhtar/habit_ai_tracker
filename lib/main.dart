@@ -4,10 +4,14 @@ import 'providers/habit_provider.dart';
 import 'providers/voice_provider.dart';
 import 'providers/analytics_provider.dart';
 import 'providers/user_provider.dart';
+import 'providers/voice_reminder_provider.dart';
+import 'providers/custom_category_provider.dart';
+import 'providers/advanced_analytics_provider.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/voice_input_screen.dart';
 import 'screens/habit_setup_screen.dart';
 import 'screens/analytics_screen.dart';
+import 'screens/ai_chatbot_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/notification_service.dart';
 import 'utils/theme.dart';
@@ -33,6 +37,9 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => VoiceProvider()),
         ChangeNotifierProvider(create: (_) => AnalyticsProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => VoiceReminderProvider()),
+        ChangeNotifierProvider(create: (_) => CustomCategoryProvider()),
+        ChangeNotifierProvider(create: (_) => AdvancedAnalyticsProvider()),
       ],
       child: Consumer<UserProvider>(
         builder: (context, userProvider, child) {
@@ -88,6 +95,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     VoiceInputScreen(),
     HabitSetupScreen(),
     AnalyticsScreen(),
+    AIChatbotScreen(),
     SettingsScreen(),
   ];
 
@@ -104,6 +112,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       final habitProvider = context.read<HabitProvider>();
       final voiceProvider = context.read<VoiceProvider>();
       final analyticsProvider = context.read<AnalyticsProvider>();
+      final voiceReminderProvider = context.read<VoiceReminderProvider>();
+      final customCategoryProvider = context.read<CustomCategoryProvider>();
 
       // Load user data first to get premium status
       await userProvider.loadUserData();
@@ -115,6 +125,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       // Initialize other providers
       await voiceProvider.initialize();
       await analyticsProvider.loadAnalytics();
+      await voiceReminderProvider.loadReminders();
+      await customCategoryProvider.loadCustomCategories();
     } catch (e) {
       print('App initialization error: $e');
       // Continue with app even if some providers fail
@@ -134,30 +146,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
+          NavigationDestination(icon: Icon(Icons.mic), label: 'Voice'),
+          NavigationDestination(icon: Icon(Icons.add), label: 'Add Habit'),
           NavigationDestination(
-            icon: Icon(Icons.mic_outlined),
-            selectedIcon: Icon(Icons.mic),
-            label: 'Voice',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_outlined),
-            selectedIcon: Icon(Icons.add),
-            label: 'Add Habit',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.analytics_outlined),
-            selectedIcon: Icon(Icons.analytics),
+            icon: Icon(Icons.analytics),
             label: 'Analytics',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
+          NavigationDestination(icon: Icon(Icons.smart_toy), label: 'AI Coach'),
+          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );

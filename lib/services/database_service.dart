@@ -5,12 +5,15 @@ import '../models/habit_log.dart';
 import '../models/ai_insight.dart';
 import '../models/user_settings.dart';
 import '../models/notification_settings.dart';
+import '../models/voice_reminder.dart';
+import '../models/custom_habit_category.dart';
+import '../models/analytics_models.dart';
 
 class DatabaseService {
   static Database? _database;
   static const String _databaseName = 'habit_tracker.db';
   static const int _databaseVersion =
-      2; // 🔔 UPDATED: Version 2 for notifications
+      4; // 🔔 UPDATED: Version 4 for custom categories
 
   Future<Database> get database async {
     _database ??= await _initDB();
@@ -96,6 +99,32 @@ class DatabaseService {
       )
     ''');
 
+    // 🎤 NEW: Voice reminders table
+    await db.execute('''
+      CREATE TABLE voice_reminders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message TEXT NOT NULL,
+        reminder_time TEXT NOT NULL,
+        habit_ids TEXT DEFAULT '',
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    // 🎨 NEW: Custom habit categories table
+    await db.execute('''
+      CREATE TABLE custom_habit_categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        icon_name TEXT NOT NULL,
+        color_code TEXT NOT NULL,
+        is_default INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
     // Create indexes for better performance
     await db.execute(
       'CREATE INDEX idx_habit_logs_habit_id ON habit_logs(habit_id)',
@@ -112,6 +141,15 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX idx_notification_settings_enabled ON notification_settings(is_enabled)',
     ); // 🔔 NEW
+    await db.execute(
+      'CREATE INDEX idx_voice_reminders_active ON voice_reminders(is_active)',
+    ); // 🎤 NEW
+    await db.execute(
+      'CREATE INDEX idx_voice_reminders_time ON voice_reminders(reminder_time)',
+    ); // 🎤 NEW
+    await db.execute(
+      'CREATE INDEX idx_custom_categories_name ON custom_habit_categories(name)',
+    ); // 🎨 NEW
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -137,6 +175,47 @@ class DatabaseService {
 
       await db.execute(
         'CREATE INDEX idx_notification_settings_enabled ON notification_settings(is_enabled)',
+      );
+    }
+
+    if (oldVersion < 3) {
+      // 🎤 ADD: Voice reminders table for existing databases
+      await db.execute('''
+        CREATE TABLE voice_reminders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          message TEXT NOT NULL,
+          reminder_time TEXT NOT NULL,
+          habit_ids TEXT DEFAULT '',
+          is_active INTEGER DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+
+      await db.execute(
+        'CREATE INDEX idx_voice_reminders_active ON voice_reminders(is_active)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_voice_reminders_time ON voice_reminders(reminder_time)',
+      );
+    }
+
+    if (oldVersion < 4) {
+      // 🎨 ADD: Custom habit categories table for existing databases
+      await db.execute('''
+        CREATE TABLE custom_habit_categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          icon_name TEXT NOT NULL,
+          color_code TEXT NOT NULL,
+          is_default INTEGER DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+
+      await db.execute(
+        'CREATE INDEX idx_custom_categories_name ON custom_habit_categories(name)',
       );
     }
   }
@@ -415,5 +494,330 @@ class DatabaseService {
       await db.close();
       _database = null;
     }
+  }
+
+  // 🎤 Voice Reminder CRUD operations
+  Future<int?> insertVoiceReminder(VoiceReminder reminder) async {
+    try {
+      final db = await database;
+      return await db.insert('voice_reminders', reminder.toMap());
+    } catch (e) {
+      print('Error inserting voice reminder: $e');
+      return null;
+    }
+  }
+
+  Future<List<VoiceReminder>> getVoiceReminders() async {
+    final db = await database;
+    final result = await db.query(
+      'voice_reminders',
+      orderBy: 'reminder_time ASC',
+    );
+    return result.map((map) => VoiceReminder.fromMap(map)).toList();
+  }
+
+  Future<VoiceReminder?> getVoiceReminder(int id) async {
+    final db = await database;
+    final result = await db.query(
+      'voice_reminders',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return result.isNotEmpty ? VoiceReminder.fromMap(result.first) : null;
+  }
+
+  Future<void> updateVoiceReminder(VoiceReminder reminder) async {
+    final db = await database;
+    await db.update(
+      'voice_reminders',
+      reminder.toMap(),
+      where: 'id = ?',
+      whereArgs: [reminder.id],
+    );
+  }
+
+  Future<void> deleteVoiceReminder(int id) async {
+    final db = await database;
+    await db.delete('voice_reminders', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<VoiceReminder>> getActiveVoiceReminders() async {
+    final db = await database;
+    final result = await db.query(
+      'voice_reminders',
+      where: 'is_active = ?',
+      whereArgs: [1],
+      orderBy: 'reminder_time ASC',
+    );
+    return result.map((map) => VoiceReminder.fromMap(map)).toList();
+  }
+
+  // 🎨 Custom Habit Categories CRUD operations
+  Future<int?> insertCustomCategory(CustomHabitCategory category) async {
+    try {
+      final db = await database;
+      return await db.insert('custom_habit_categories', category.toMap());
+    } catch (e) {
+      print('Error inserting custom category: $e');
+      return null;
+    }
+  }
+
+  Future<List<CustomHabitCategory>> getCustomCategories() async {
+    final db = await database;
+    final result = await db.query(
+      'custom_habit_categories',
+      orderBy: 'created_at ASC',
+    );
+    return result.map((map) => CustomHabitCategory.fromMap(map)).toList();
+  }
+
+  Future<CustomHabitCategory?> getCustomCategory(int id) async {
+    final db = await database;
+    final result = await db.query(
+      'custom_habit_categories',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return result.isNotEmpty ? CustomHabitCategory.fromMap(result.first) : null;
+  }
+
+  Future<void> updateCustomCategory(CustomHabitCategory category) async {
+    final db = await database;
+    await db.update(
+      'custom_habit_categories',
+      category.toMap(),
+      where: 'id = ?',
+      whereArgs: [category.id],
+    );
+  }
+
+  Future<void> deleteCustomCategory(int id) async {
+    final db = await database;
+    await db.delete(
+      'custom_habit_categories',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<bool> isCategoryInUse(int categoryId) async {
+    final db = await database;
+
+    // First get the category name
+    final categoryResult = await db.query(
+      'custom_habit_categories',
+      where: 'id = ?',
+      whereArgs: [categoryId],
+    );
+
+    if (categoryResult.isEmpty) return false;
+
+    final categoryName = categoryResult.first['name'] as String;
+
+    // Check if any habits use this category
+    final habitResult = await db.query(
+      'habits',
+      where: 'category = ? AND is_active = 1',
+      whereArgs: [categoryName],
+    );
+
+    return habitResult.isNotEmpty;
+  }
+
+  // ============ ANALYTICS METHODS ============
+
+  /// Get heatmap data for the specified date range
+  Future<List<HeatmapData>> getHeatmapData(DateTime start, DateTime end) async {
+    final db = await database;
+
+    final startStr = start.toIso8601String().split('T')[0];
+    final endStr = end.toIso8601String().split('T')[0];
+
+    final result = await db.rawQuery(
+      '''
+      SELECT 
+        DATE(hl.completed_at) as date,
+        COUNT(DISTINCT hl.habit_id) as completed_habits,
+        COUNT(DISTINCT h.id) as total_habits,
+        CAST(COUNT(DISTINCT hl.habit_id) AS REAL) / COUNT(DISTINCT h.id) as completion_rate
+      FROM habits h
+      LEFT JOIN habit_logs hl ON h.id = hl.habit_id 
+        AND DATE(hl.completed_at) >= ? 
+        AND DATE(hl.completed_at) <= ?
+      WHERE h.is_active = 1
+      GROUP BY DATE(hl.completed_at)
+      ORDER BY date
+    ''',
+      [startStr, endStr],
+    );
+
+    return result
+        .map((row) {
+          final dateStr = row['date'] as String?;
+          if (dateStr == null) return null;
+
+          return HeatmapData(
+            date: DateTime.parse(dateStr),
+            completedHabits: (row['completed_habits'] as int?) ?? 0,
+            totalHabits: (row['total_habits'] as int?) ?? 0,
+            completionRate: (row['completion_rate'] as double?) ?? 0.0,
+          );
+        })
+        .where((data) => data != null)
+        .cast<HeatmapData>()
+        .toList();
+  }
+
+  /// Get recent habit completion data
+  Future<Map<String, dynamic>> getRecentHabitData({
+    required int days,
+    required List<Habit> habits,
+  }) async {
+    final db = await database;
+    final startDate = DateTime.now().subtract(Duration(days: days));
+    final startStr = startDate.toIso8601String().split('T')[0];
+
+    final result = await db.rawQuery(
+      '''
+      SELECT 
+        h.id,
+        h.name,
+        h.category,
+        COUNT(hl.id) as completions,
+        COUNT(DISTINCT DATE(hl.completed_at)) as unique_days
+      FROM habits h
+      LEFT JOIN habit_logs hl ON h.id = hl.habit_id 
+        AND DATE(hl.completed_at) >= ?
+      WHERE h.is_active = 1
+      GROUP BY h.id, h.name, h.category
+    ''',
+      [startStr],
+    );
+
+    return {'habits': result, 'period_days': days, 'start_date': startStr};
+  }
+
+  /// Get weekly completion statistics for a habit
+  Future<Map<int, double>> getWeeklyCompletionStats(int habitId) async {
+    final db = await database;
+
+    final result = await db.rawQuery(
+      '''
+      SELECT 
+        CAST(strftime('%w', completed_at) AS INTEGER) as day_of_week,
+        COUNT(*) as completions,
+        COUNT(DISTINCT DATE(completed_at)) as total_days
+      FROM habit_logs 
+      WHERE habit_id = ?
+        AND completed_at >= date('now', '-90 days')
+      GROUP BY day_of_week
+    ''',
+      [habitId],
+    );
+
+    final stats = <int, double>{};
+
+    for (final row in result) {
+      final dayOfWeek = (row['day_of_week'] as int?) ?? 0;
+      final completions = (row['completions'] as int?) ?? 0;
+      final totalDays = (row['total_days'] as int?) ?? 1;
+
+      // Convert Sunday (0) to 7 for Monday-first week
+      final adjustedDay = dayOfWeek == 0 ? 7 : dayOfWeek;
+      stats[adjustedDay] = completions / totalDays;
+    }
+
+    return stats;
+  }
+
+  /// Get hourly completion statistics for a habit
+  Future<Map<int, double>> getHourlyCompletionStats(int habitId) async {
+    final db = await database;
+
+    final result = await db.rawQuery(
+      '''
+      SELECT 
+        CAST(strftime('%H', completed_at) AS INTEGER) as hour,
+        COUNT(*) as completions
+      FROM habit_logs 
+      WHERE habit_id = ?
+        AND completed_at >= date('now', '-90 days')
+      GROUP BY hour
+    ''',
+      [habitId],
+    );
+
+    final stats = <int, double>{};
+    final totalCompletions = result.fold<int>(
+      0,
+      (sum, row) => sum + ((row['completions'] as int?) ?? 0),
+    );
+
+    for (final row in result) {
+      final hour = (row['hour'] as int?) ?? 0;
+      final completions = (row['completions'] as int?) ?? 0;
+
+      stats[hour] = totalCompletions > 0 ? completions / totalCompletions : 0.0;
+    }
+
+    return stats;
+  }
+
+  /// Get streak analysis for a habit
+  Future<Map<String, dynamic>> getStreakAnalysis(int habitId) async {
+    final db = await database;
+
+    // Get all completion dates for the habit
+    final result = await db.rawQuery(
+      '''
+      SELECT DISTINCT DATE(completed_at) as date
+      FROM habit_logs 
+      WHERE habit_id = ?
+      ORDER BY date
+    ''',
+      [habitId],
+    );
+
+    if (result.isEmpty) {
+      return {'average_streak': 0.0, 'longest_streak': 0, 'consistency': 0.0};
+    }
+
+    final dates = result
+        .map((row) => DateTime.parse(row['date'] as String))
+        .toList();
+
+    // Calculate streaks
+    final streaks = <int>[];
+    int currentStreak = 1;
+
+    for (int i = 1; i < dates.length; i++) {
+      final daysDiff = dates[i].difference(dates[i - 1]).inDays;
+
+      if (daysDiff == 1) {
+        currentStreak++;
+      } else {
+        streaks.add(currentStreak);
+        currentStreak = 1;
+      }
+    }
+    streaks.add(currentStreak);
+
+    final averageStreak = streaks.isNotEmpty
+        ? streaks.reduce((a, b) => a + b) / streaks.length
+        : 0.0;
+    final longestStreak = streaks.isNotEmpty
+        ? streaks.reduce((a, b) => a > b ? a : b)
+        : 0;
+
+    // Calculate consistency (completions vs expected days)
+    final daysSinceFirst = DateTime.now().difference(dates.first).inDays + 1;
+    final consistency = dates.length / daysSinceFirst;
+
+    return {
+      'average_streak': averageStreak,
+      'longest_streak': longestStreak,
+      'consistency': consistency.clamp(0.0, 1.0),
+    };
   }
 }

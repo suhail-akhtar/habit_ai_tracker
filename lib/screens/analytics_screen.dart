@@ -3,11 +3,15 @@ import 'package:provider/provider.dart';
 import '../providers/analytics_provider.dart';
 import '../providers/habit_provider.dart';
 import '../providers/user_provider.dart';
+import '../providers/advanced_analytics_provider.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
 import '../widgets/progress_chart.dart';
 import '../widgets/premium_dialog.dart';
+import '../widgets/habit_heatmap_widget.dart';
+import '../widgets/predictive_insights_widget.dart';
 import '../models/habit.dart';
+import '../models/analytics_models.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -23,7 +27,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -42,6 +46,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           tabs: const [
             Tab(text: 'Overview'),
             Tab(text: 'Insights'),
+            Tab(text: 'Advanced'),
           ],
         ),
       ),
@@ -61,6 +66,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                     userProvider,
                   ),
                   _buildInsightsTab(analyticsProvider, userProvider),
+                  _buildAdvancedTab(userProvider),
                 ],
               );
             },
@@ -731,6 +737,329 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancedTab(UserProvider userProvider) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        final analyticsProvider = Provider.of<AdvancedAnalyticsProvider>(
+          context,
+          listen: false,
+        );
+        final habitProvider = Provider.of<HabitProvider>(
+          context,
+          listen: false,
+        );
+
+        await analyticsProvider.loadAllAnalytics(
+          habits: habitProvider.habits,
+          isPremium: userProvider.isPremium,
+        );
+      },
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Activity Heatmap
+            const HabitHeatmapWidget(),
+
+            const SizedBox(height: 16),
+
+            // Predictive Insights
+            const PredictiveInsightsWidget(),
+
+            const SizedBox(height: 16),
+
+            // Pattern Analysis
+            _buildPatternAnalysisCard(userProvider),
+
+            const SizedBox(height: 80), // Extra space for bottom navigation
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPatternAnalysisCard(UserProvider userProvider) {
+    return Consumer<AdvancedAnalyticsProvider>(
+      builder: (context, analyticsProvider, child) {
+        if (!userProvider.isPremium) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.pattern,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Pattern Analysis',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Discover your habit patterns and optimize your routine with AI-powered insights.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Premium upgrade coming soon!'),
+                        ),
+                      );
+                    },
+                    child: const Text('Upgrade to Premium'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        if (analyticsProvider.isLoadingPatterns) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Analyzing patterns...'),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final patterns = analyticsProvider.habitPatterns;
+
+        if (patterns.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.pattern,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No patterns detected yet',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Complete more habits to discover your behavioral patterns!',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.pattern,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Behavioral Patterns',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'PREMIUM',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ...patterns
+                    .take(5)
+                    .map((pattern) => _buildPatternCard(context, pattern)),
+                if (patterns.length > 5) ...[
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _showAllPatterns(context, patterns),
+                      child: Text('View all ${patterns.length} patterns'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPatternCard(BuildContext context, HabitPattern pattern) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _getPatternIcon(pattern.patternType),
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  pattern.habitName,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              _buildStrengthIndicator(context, pattern.strength),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            pattern.description,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStrengthIndicator(BuildContext context, double strength) {
+    Color strengthColor;
+    String strengthLabel;
+
+    if (strength >= 0.7) {
+      strengthColor = Colors.green;
+      strengthLabel = 'Strong';
+    } else if (strength >= 0.4) {
+      strengthColor = Colors.orange;
+      strengthLabel = 'Moderate';
+    } else {
+      strengthColor = Colors.grey;
+      strengthLabel = 'Weak';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: strengthColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        strengthLabel,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: strengthColor,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  IconData _getPatternIcon(String patternType) {
+    switch (patternType) {
+      case 'weekly_cycle':
+        return Icons.calendar_view_week;
+      case 'daily_rhythm':
+        return Icons.access_time;
+      case 'streak_building':
+        return Icons.local_fire_department;
+      case 'decline_risk':
+        return Icons.trending_down;
+      default:
+        return Icons.pattern;
+    }
+  }
+
+  void _showAllPatterns(BuildContext context, List<HabitPattern> patterns) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.5,
+        builder: (context, scrollController) => Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'All Behavioral Patterns',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: patterns.length,
+                  itemBuilder: (context, index) =>
+                      _buildPatternCard(context, patterns[index]),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
