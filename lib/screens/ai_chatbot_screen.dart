@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/ai_chatbot_service.dart';
+import '../services/text_to_speech_service.dart';
 import '../providers/habit_provider.dart';
 import '../providers/user_provider.dart';
 import '../utils/constants.dart';
@@ -18,21 +19,32 @@ class AIChatbotScreen extends StatefulWidget {
 
 class _AIChatbotScreenState extends State<AIChatbotScreen> {
   final AIChatbotService _chatbotService = AIChatbotService();
+  final TextToSpeechService _ttsService = TextToSpeechService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+  bool _isTtsEnabled = false;
 
   @override
   void initState() {
     super.initState();
+    _initializeTts();
     _addWelcomeMessage();
+  }
+
+  Future<void> _initializeTts() async {
+    await _ttsService.initialize();
+    setState(() {
+      _isTtsEnabled = _ttsService.isEnabled;
+    });
   }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _ttsService.dispose();
     super.dispose();
   }
 
@@ -61,23 +73,40 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
         actions: [
           Consumer<UserProvider>(
             builder: (context, userProvider, child) {
-              final limits = _chatbotService.checkUsageLimits(
-                userProvider.isPremium,
-              );
-              return Padding(
-                padding: const EdgeInsets.only(right: AppTheme.spacingM),
-                child: Center(
-                  child: Text(
-                    '${limits.remainingMessages} left',
-                    style: AppTheme.bodySmall.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onPrimary.withOpacity(0.8),
-                    ),
-                  ),
+              return FutureBuilder<UsageLimitResult>(
+                future: _chatbotService.checkUsageLimits(
+                  userProvider.isPremium,
                 ),
+                builder: (context, snapshot) {
+                  final limits =
+                      snapshot.data ??
+                      UsageLimitResult(
+                        canSendMessage: false,
+                        remainingMessages: 0,
+                      );
+                  return Padding(
+                    padding: const EdgeInsets.only(right: AppTheme.spacingM),
+                    child: Center(
+                      child: Text(
+                        '${limits.remainingMessages} left',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimary.withOpacity(0.8),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
+          ),
+          IconButton(
+            icon: Icon(_isTtsEnabled ? Icons.volume_up : Icons.volume_off),
+            onPressed: _toggleTts,
+            tooltip: _isTtsEnabled
+                ? 'Disable text-to-speech'
+                : 'Enable text-to-speech',
           ),
           IconButton(
             icon: const Icon(Icons.help_outline),
@@ -98,61 +127,68 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
   Widget _buildUsageBanner() {
     return Consumer<UserProvider>(
       builder: (context, userProvider, child) {
-        final limits = _chatbotService.checkUsageLimits(userProvider.isPremium);
+        return FutureBuilder<UsageLimitResult>(
+          future: _chatbotService.checkUsageLimits(userProvider.isPremium),
+          builder: (context, snapshot) {
+            final limits =
+                snapshot.data ??
+                UsageLimitResult(canSendMessage: false, remainingMessages: 0);
 
-        if (userProvider.isPremium) {
-          return Container(
-            padding: const EdgeInsets.all(AppTheme.spacingS),
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.star,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 16,
-                ),
-                const SizedBox(width: AppTheme.spacingS),
-                Text(
-                  'Premium: ${limits.remainingMessages} messages remaining today',
-                  style: AppTheme.bodySmall,
-                ),
-              ],
-            ),
-          );
-        } else {
-          return Container(
-            padding: const EdgeInsets.all(AppTheme.spacingS),
-            color: Theme.of(context).colorScheme.error.withOpacity(0.1),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.chat_bubble_outline,
-                  color: Theme.of(context).colorScheme.error,
-                  size: 16,
-                ),
-                const SizedBox(width: AppTheme.spacingS),
-                Expanded(
-                  child: Text(
-                    'Free: ${limits.remainingMessages}/${Constants.freeChatbotMessages} messages left today',
-                    style: AppTheme.bodySmall,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => showPremiumDialog(
-                    context,
-                    feature: 'Get 50 daily AI chat messages',
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingS,
+            if (userProvider.isPremium) {
+              return Container(
+                padding: const EdgeInsets.all(AppTheme.spacingS),
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.star,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 16,
                     ),
-                  ),
-                  child: const Text('Upgrade'),
+                    const SizedBox(width: AppTheme.spacingS),
+                    Text(
+                      'Premium: ${limits.remainingMessages} messages remaining today',
+                      style: AppTheme.bodySmall,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        }
+              );
+            } else {
+              return Container(
+                padding: const EdgeInsets.all(AppTheme.spacingS),
+                color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.chat_bubble_outline,
+                      color: Theme.of(context).colorScheme.error,
+                      size: 16,
+                    ),
+                    const SizedBox(width: AppTheme.spacingS),
+                    Expanded(
+                      child: Text(
+                        'Free: ${limits.remainingMessages}/${Constants.freeChatbotMessages} messages left today',
+                        style: AppTheme.bodySmall,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => showPremiumDialog(
+                        context,
+                        feature: 'Get 50 daily AI chat messages',
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingS,
+                        ),
+                      ),
+                      child: const Text('Upgrade'),
+                    ),
+                  ],
+                ),
+              );
+            }
+          },
+        );
       },
     );
   }
@@ -222,6 +258,17 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
                     style: const TextStyle(fontSize: 12),
                   ),
                   const SizedBox(width: AppTheme.spacingXS),
+                  if (_isTtsEnabled) ...[
+                    InkWell(
+                      onTap: () => _speakMessage(message.content),
+                      child: Icon(
+                        Icons.volume_up,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spacingXS),
+                  ],
                 ],
                 Text(
                   Helpers.formatTimeAgo(message.timestamp),
@@ -278,59 +325,69 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
   Widget _buildMessageInput() {
     return Consumer2<UserProvider, HabitProvider>(
       builder: (context, userProvider, habitProvider, child) {
-        final limits = _chatbotService.checkUsageLimits(userProvider.isPremium);
+        return FutureBuilder<UsageLimitResult>(
+          future: _chatbotService.checkUsageLimits(userProvider.isPremium),
+          builder: (context, snapshot) {
+            final limits =
+                snapshot.data ??
+                UsageLimitResult(canSendMessage: false, remainingMessages: 0);
 
-        return Container(
-          padding: EdgeInsets.only(
-            left: AppTheme.spacingM,
-            right: AppTheme.spacingM,
-            top: AppTheme.spacingS,
-            bottom: MediaQuery.of(context).padding.bottom + AppTheme.spacingS,
-          ),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border(
-              top: BorderSide(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            return Container(
+              padding: EdgeInsets.only(
+                left: AppTheme.spacingM,
+                right: AppTheme.spacingM,
+                top: AppTheme.spacingS,
+                bottom:
+                    MediaQuery.of(context).padding.bottom + AppTheme.spacingS,
               ),
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _messageController,
-                  decoration: InputDecoration(
-                    hintText: limits.canSendMessage
-                        ? 'Ask me about habits, motivation, or app features...'
-                        : 'Daily message limit reached',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusL),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingM,
-                      vertical: AppTheme.spacingS,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withOpacity(0.2),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: InputDecoration(
+                        hintText: limits.canSendMessage
+                            ? 'Ask me about habits, motivation, or app features...'
+                            : 'Daily message limit reached',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusL),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingM,
+                          vertical: AppTheme.spacingS,
+                        ),
+                      ),
+                      maxLines: null,
+                      enabled: limits.canSendMessage && !_isLoading,
+                      onSubmitted: (value) =>
+                          _sendMessage(userProvider, habitProvider),
                     ),
                   ),
-                  maxLines: null,
-                  enabled: limits.canSendMessage && !_isLoading,
-                  onSubmitted: (value) =>
-                      _sendMessage(userProvider, habitProvider),
-                ),
+                  const SizedBox(width: AppTheme.spacingS),
+                  IconButton(
+                    onPressed: limits.canSendMessage && !_isLoading
+                        ? () => _sendMessage(userProvider, habitProvider)
+                        : null,
+                    icon: Icon(_isLoading ? Icons.hourglass_empty : Icons.send),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: AppTheme.spacingS),
-              IconButton(
-                onPressed: limits.canSendMessage && !_isLoading
-                    ? () => _sendMessage(userProvider, habitProvider)
-                    : null,
-                icon: Icon(_isLoading ? Icons.hourglass_empty : Icons.send),
-                style: IconButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -383,6 +440,51 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
       });
 
       _scrollToBottom();
+
+      // Handle action results if any action was executed
+      if (response.actionExecuted && response.actionResult != null) {
+        final actionResult = response.actionResult!;
+
+        // Show toast message for action feedback
+        if (actionResult.showToast && actionResult.toastMessage != null) {
+          Helpers.showSnackBar(
+            context,
+            actionResult.toastMessage!,
+            isError: !actionResult.success,
+          );
+        }
+
+        // Handle follow-up questions
+        if (actionResult.needsMoreInfo &&
+            actionResult.followUpQuestion != null) {
+          // Add follow-up question as AI message
+          Future.delayed(const Duration(milliseconds: 500), () {
+            final followUpMessage = ChatMessage(
+              id: '${DateTime.now().millisecondsSinceEpoch}_followup',
+              content: actionResult.followUpQuestion!,
+              isUser: false,
+              timestamp: DateTime.now(),
+              messageType: ChatMessageType.coaching,
+            );
+
+            setState(() {
+              _messages.add(followUpMessage);
+            });
+
+            _scrollToBottom();
+
+            // Speak follow-up question if TTS is enabled
+            if (_isTtsEnabled) {
+              _speakMessage(actionResult.followUpQuestion!);
+            }
+          });
+        }
+      }
+
+      // Automatically speak AI response if TTS is enabled
+      if (_isTtsEnabled && !response.isError) {
+        _speakMessage(response.message);
+      }
 
       // Show error if there was one
       if (response.isError && mounted) {
@@ -469,5 +571,34 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
         ],
       ),
     );
+  }
+
+  /// Toggle text-to-speech functionality
+  Future<void> _toggleTts() async {
+    setState(() {
+      _isTtsEnabled = !_isTtsEnabled;
+    });
+
+    await _ttsService.setEnabled(_isTtsEnabled);
+
+    if (mounted) {
+      Helpers.showSnackBar(
+        context,
+        _isTtsEnabled ? 'Text-to-speech enabled' : 'Text-to-speech disabled',
+      );
+    }
+  }
+
+  /// Speak the given message using TTS
+  Future<void> _speakMessage(String message) async {
+    if (!_isTtsEnabled) return;
+
+    try {
+      await _ttsService.speak(message);
+    } catch (e) {
+      if (mounted) {
+        Helpers.showSnackBar(context, 'Failed to speak message', isError: true);
+      }
+    }
   }
 }

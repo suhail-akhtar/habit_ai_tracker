@@ -1,28 +1,34 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/habit.dart';
 import '../utils/constants.dart';
 import 'gemini_service.dart';
 import 'user_profile_service.dart';
+import 'ai_action_service.dart';
 
-/// AI-powered chatbot service for habit coaching and FAQ support
+/// AI-powered chatbot service for habit coaching, actions, and FAQ support
 class AIChatbotService {
   final GeminiService _geminiService = GeminiService();
   final UserProfileService _profileService = UserProfileService();
+  final AIActionService _actionService = AIActionService();
 
-  // Track daily usage
-  static DateTime? _lastResetDate;
-  static int _dailyMessageCount = 0;
+  // Persistent message tracking
+  static const String _messageCountKey = 'ai_daily_message_count';
+  static const String _lastResetDateKey = 'ai_last_reset_date';
 
-  /// Send a message to the AI chatbot
+  /// Send a message to the AI chatbot with enhanced capabilities
   Future<ChatbotResponse> sendMessage({
     required String message,
     required bool isPremiumUser,
     required List<Habit> userHabits,
     List<ChatMessage> conversationHistory = const [],
+    BuildContext? context,
+    bool enableActions = true,
   }) async {
     try {
       // Check usage limits
-      final usageCheck = _checkUsageLimits(isPremiumUser);
+      final usageCheck = await _checkUsageLimits(isPremiumUser);
       if (!usageCheck.canSendMessage) {
         return ChatbotResponse(
           message: usageCheck.errorMessage!,
@@ -45,9 +51,46 @@ class AIChatbotService {
       }
 
       // Increment usage count
-      _incrementUsageCount();
+      await _incrementUsageCount();
 
-      // Generate AI response
+      // 🚀 NEW: Try to execute actions first if enabled
+      if (enableActions) {
+        final actionResult = await _actionService.executeAction(
+          userMessage: sanitizedMessage,
+          userHabits: userHabits,
+          context: context,
+        );
+
+        if (actionResult.success) {
+          final remainingMessages = await _getRemainingMessages(isPremiumUser);
+          return ChatbotResponse(
+            message: actionResult.message,
+            isError: false,
+            remainingMessages: remainingMessages,
+            messageType: _getMessageTypeForAction(actionResult.actionType),
+            suggestions: _getActionSuggestions(actionResult.actionType),
+            actionExecuted: true,
+            actionResult: actionResult,
+          );
+        } else if (actionResult.actionType != ActionType.none) {
+          // Action was detected but failed - provide helpful response
+          final remainingMessages = await _getRemainingMessages(isPremiumUser);
+          return ChatbotResponse(
+            message:
+                "${actionResult.message}\n\nWould you like me to help you with something else instead?",
+            isError: false,
+            remainingMessages: remainingMessages,
+            messageType: ChatMessageType.advice,
+            suggestions: [
+              'How do I create a habit?',
+              'Show my progress',
+              'Set up notifications',
+            ],
+          );
+        }
+      }
+
+      // Generate AI response for conversation
       final aiResponse = await _generateAIResponse(
         sanitizedMessage,
         userHabits,
@@ -55,10 +98,11 @@ class AIChatbotService {
         isPremiumUser,
       );
 
+      final remainingMessages = await _getRemainingMessages(isPremiumUser);
       return ChatbotResponse(
         message: aiResponse.message,
         isError: false,
-        remainingMessages: _getRemainingMessages(isPremiumUser),
+        remainingMessages: remainingMessages,
         messageType: aiResponse.messageType,
         suggestions: aiResponse.suggestions,
         habitRecommendations: aiResponse.habitRecommendations,
@@ -68,10 +112,11 @@ class AIChatbotService {
         print('🤖 AIChatbotService: ❌ Send message failed: $e');
       }
 
+      final remainingMessages = await _getRemainingMessages(isPremiumUser);
       return ChatbotResponse(
         message: "I'm having trouble right now. Please try again in a moment.",
         isError: true,
-        remainingMessages: _getRemainingMessages(isPremiumUser),
+        remainingMessages: remainingMessages,
         messageType: ChatMessageType.error,
       );
     }
@@ -85,10 +130,11 @@ class AIChatbotService {
     final faqAnswer = _matchFAQPattern(question);
 
     if (faqAnswer != null) {
+      final remainingMessages = await _getRemainingMessages(isPremiumUser);
       return ChatbotResponse(
         message: faqAnswer,
         isError: false,
-        remainingMessages: _getRemainingMessages(isPremiumUser),
+        remainingMessages: remainingMessages,
         messageType: ChatMessageType.faq,
       );
     }
@@ -103,18 +149,21 @@ class AIChatbotService {
   }
 
   /// Check current usage limits
-  UsageLimitResult checkUsageLimits(bool isPremiumUser) {
-    return _checkUsageLimits(isPremiumUser);
+  Future<UsageLimitResult> checkUsageLimits(bool isPremiumUser) async {
+    return await _checkUsageLimits(isPremiumUser);
   }
 
-  /// Reset daily usage count (called automatically)
-  void _resetDailyUsage() {
+  /// Reset daily usage count with persistent storage
+  Future<void> _resetDailyUsage() async {
+    final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now();
-    final todayDate = DateTime(today.year, today.month, today.day);
+    final todayString = '${today.year}-${today.month}-${today.day}';
 
-    if (_lastResetDate == null || _lastResetDate!.isBefore(todayDate)) {
-      _lastResetDate = todayDate;
-      _dailyMessageCount = 0;
+    final lastResetDate = prefs.getString(_lastResetDateKey);
+
+    if (lastResetDate != todayString) {
+      await prefs.setString(_lastResetDateKey, todayString);
+      await prefs.setInt(_messageCountKey, 0);
 
       if (kDebugMode) {
         print('🤖 AIChatbotService: Daily usage reset');
@@ -122,15 +171,18 @@ class AIChatbotService {
     }
   }
 
-  /// Check if user can send message
-  UsageLimitResult _checkUsageLimits(bool isPremiumUser) {
-    _resetDailyUsage();
+  /// Check if user can send message with persistent storage
+  Future<UsageLimitResult> _checkUsageLimits(bool isPremiumUser) async {
+    await _resetDailyUsage();
+
+    final prefs = await SharedPreferences.getInstance();
+    final dailyMessageCount = prefs.getInt(_messageCountKey) ?? 0;
 
     final limit = isPremiumUser
         ? Constants.premiumChatbotMessages
         : Constants.freeChatbotMessages;
 
-    final remaining = limit - _dailyMessageCount;
+    final remaining = limit - dailyMessageCount;
 
     if (remaining <= 0) {
       final errorMessage = isPremiumUser
@@ -147,20 +199,25 @@ class AIChatbotService {
     return UsageLimitResult(canSendMessage: true, remainingMessages: remaining);
   }
 
-  /// Increment usage count
-  void _incrementUsageCount() {
-    _dailyMessageCount++;
+  /// Increment usage count with persistent storage
+  Future<void> _incrementUsageCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentCount = prefs.getInt(_messageCountKey) ?? 0;
+    await prefs.setInt(_messageCountKey, currentCount + 1);
   }
 
-  /// Get remaining messages for user
-  int _getRemainingMessages(bool isPremiumUser) {
-    _resetDailyUsage();
+  /// Get remaining messages for user with persistent storage
+  Future<int> _getRemainingMessages(bool isPremiumUser) async {
+    await _resetDailyUsage();
+
+    final prefs = await SharedPreferences.getInstance();
+    final dailyMessageCount = prefs.getInt(_messageCountKey) ?? 0;
 
     final limit = isPremiumUser
         ? Constants.premiumChatbotMessages
         : Constants.freeChatbotMessages;
 
-    return (limit - _dailyMessageCount).clamp(0, limit);
+    return (limit - dailyMessageCount).clamp(0, limit);
   }
 
   /// Sanitize user message
@@ -472,6 +529,63 @@ class AIChatbotService {
     return null;
   }
 
+  /// Get message type based on action type
+  ChatMessageType _getMessageTypeForAction(ActionType actionType) {
+    switch (actionType) {
+      case ActionType.createHabit:
+        return ChatMessageType.coaching;
+      case ActionType.setupNotification:
+      case ActionType.createReminder:
+      case ActionType.scheduleActivity:
+        return ChatMessageType.system;
+      case ActionType.modifyHabit:
+        return ChatMessageType.advice;
+      case ActionType.checkProgress:
+        return ChatMessageType.general;
+      case ActionType.none:
+        return ChatMessageType.general;
+    }
+  }
+
+  /// Get action-specific suggestions
+  List<String> _getActionSuggestions(ActionType actionType) {
+    switch (actionType) {
+      case ActionType.createHabit:
+        return [
+          'Set up reminders for this habit',
+          'Create another habit',
+          'Check my progress',
+        ];
+      case ActionType.setupNotification:
+      case ActionType.createReminder:
+        return [
+          'Create more reminders',
+          'Check my notifications',
+          'Modify existing reminders',
+        ];
+      case ActionType.modifyHabit:
+        return [
+          'Check updated progress',
+          'Create new habits',
+          'Set up notifications',
+        ];
+      case ActionType.checkProgress:
+        return [
+          'Create new habit',
+          'Set up reminders',
+          'Show detailed analytics',
+        ];
+      case ActionType.scheduleActivity:
+        return [
+          'Schedule more activities',
+          'View my schedule',
+          'Create habit from activity',
+        ];
+      case ActionType.none:
+        return ['Create a habit', 'Set up reminders', 'Check my progress'];
+    }
+  }
+
   /// Dispose resources
   void dispose() {
     _geminiService.dispose();
@@ -499,6 +613,8 @@ class ChatbotResponse {
   final ChatMessageType messageType;
   final List<String> suggestions;
   final List<String> habitRecommendations;
+  final bool actionExecuted;
+  final AIActionResult? actionResult;
 
   ChatbotResponse({
     required this.message,
@@ -507,6 +623,8 @@ class ChatbotResponse {
     required this.messageType,
     this.suggestions = const [],
     this.habitRecommendations = const [],
+    this.actionExecuted = false,
+    this.actionResult,
   });
 }
 

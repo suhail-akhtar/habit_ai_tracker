@@ -3,7 +3,7 @@ class AppConfig {
   static const String appVersion = '1.0.0';
 
   // 🔧 FIXED: Gemini API Configuration for gemini-2.5-flash
-  static const String geminiApiKey = 'AIzaSyCSCbrQ2Dh4MPLyruPMo2is1FqQXfB2n18';
+  static const String geminiApiKey = 'AIzaSyCJAWyjQhW7ivN6S9otf-9GiH28QwU-Dis';
   static const String geminiBaseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
   static const String geminiModel =
