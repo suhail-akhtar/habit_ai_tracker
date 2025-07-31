@@ -4,6 +4,7 @@ import '../models/analytics_models.dart';
 import '../providers/advanced_analytics_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/habit_provider.dart';
+import '../widgets/premium_dialog.dart';
 
 class PredictiveInsightsWidget extends StatefulWidget {
   final int maxInsights;
@@ -380,12 +381,7 @@ class _PredictiveInsightsWidgetState extends State<PredictiveInsightsWidget> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () {
-                // TODO: Navigate to premium upgrade
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Premium upgrade coming soon!')),
-                );
-              },
+              onPressed: () => _showPremiumUpgrade(context),
               child: const Text('Upgrade to Premium'),
             ),
           ],
@@ -465,5 +461,9 @@ class _PredictiveInsightsWidgetState extends State<PredictiveInsightsWidget> {
         ),
       ),
     );
+  }
+
+  void _showPremiumUpgrade(BuildContext context) {
+    showPremiumDialog(context, feature: 'Predictive Insights');
   }
 }

@@ -44,6 +44,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // 🔄 NEW: Manual refresh for notifications
+  Future<void> _refreshNotifications() async {
+    await _loadNotifications();
+    if (mounted) {
+      Helpers.showSnackBar(context, 'Notifications refreshed');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,11 +153,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Notifications', style: AppTheme.titleMedium),
-                if (canAddMore)
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () => _addNotification(userProvider),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 🔄 NEW: Refresh button
+                    IconButton(
+                      icon: Icon(
+                        Icons.refresh,
+                        size: 20,
+                        color: _isLoadingNotifications
+                            ? Theme.of(
+                                context,
+                              ).colorScheme.primary.withOpacity(0.5)
+                            : Theme.of(context).colorScheme.primary,
+                      ),
+                      onPressed: _isLoadingNotifications
+                          ? null
+                          : _refreshNotifications,
+                      tooltip: 'Refresh notifications',
+                    ),
+                    if (canAddMore)
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () => _addNotification(userProvider),
+                        tooltip: 'Add new notification',
+                      ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: AppTheme.spacingS),
@@ -162,6 +192,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 fontWeight: FontWeight.w600,
               ),
             ),
+
+            // 💡 NEW: User tip for auto-notifications
+            const SizedBox(height: AppTheme.spacingS),
+            Container(
+              padding: const EdgeInsets.all(AppTheme.spacingS),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(AppTheme.radiusS),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: AppTheme.spacingS),
+                  Expanded(
+                    child: Text(
+                      'Tip: Auto-notifications are created when you add habits with Smart Reminders enabled',
+                      style: AppTheme.bodySmall.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: AppTheme.spacingM),
 
             if (_isLoadingNotifications)
@@ -406,6 +468,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Text('Appearance', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
+
+            // Theme Mode
             ListTile(
               leading: const Icon(Icons.palette),
               title: const Text('Theme'),
@@ -414,13 +478,152 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               onTap: () => _showThemeDialog(context, userProvider),
             ),
+
+            const Divider(),
+
+            // Font Size
+            ListTile(
+              leading: const Icon(Icons.text_fields),
+              title: const Text('Font Size'),
+              subtitle: Text(
+                _getFontSizeDisplayName(userProvider.getSetting('font_size')),
+              ),
+              onTap: () => _showFontSizeDialog(context, userProvider),
+            ),
+
+            const Divider(),
+
+            // App Language
+            ListTile(
+              leading: const Icon(Icons.language),
+              title: const Text('Language'),
+              subtitle: Text(
+                _getAppLanguageDisplayName(
+                  userProvider.getSetting('app_language'),
+                ),
+              ),
+              onTap: () => _showAppLanguageDialog(context, userProvider),
+            ),
+
+            const Divider(),
+
+            // Compact Mode
+            SwitchListTile(
+              secondary: const Icon(Icons.view_compact),
+              title: const Text('Compact Mode'),
+              subtitle: const Text('Show more content in less space'),
+              value: userProvider.getSetting('compact_mode') == 'true',
+              onChanged: (value) {
+                userProvider.updateSetting('compact_mode', value.toString());
+                Helpers.showSnackBar(
+                  context,
+                  value ? 'Compact mode enabled' : 'Compact mode disabled',
+                );
+              },
+            ),
+
+            const Divider(),
+
+            // Show Habit Stats
+            SwitchListTile(
+              secondary: const Icon(Icons.bar_chart),
+              title: const Text('Show Habit Statistics'),
+              subtitle: const Text('Display completion rates and streaks'),
+              value: userProvider.getSetting('show_habit_stats') != 'false',
+              onChanged: (value) {
+                userProvider.updateSetting(
+                  'show_habit_stats',
+                  value.toString(),
+                );
+                Helpers.showSnackBar(
+                  context,
+                  value
+                      ? 'Habit statistics enabled'
+                      : 'Habit statistics disabled',
+                );
+              },
+            ),
+
             if (userProvider.isPremium) ...[
               const Divider(),
+
+              // Custom Colors (Premium)
               ListTile(
                 leading: const Icon(Icons.color_lens),
                 title: const Text('Custom Colors'),
                 subtitle: const Text('Personalize your app colors'),
-                onTap: () => _showCustomColorsDialog(context),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'PRO',
+                    style: AppTheme.bodySmall.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                onTap: () => _showCustomColorsDialog(context, userProvider),
+              ),
+
+              const Divider(),
+
+              // Animation Settings (Premium)
+              SwitchListTile(
+                secondary: const Icon(Icons.animation),
+                title: const Text('Enhanced Animations'),
+                subtitle: const Text('Beautiful transitions and effects'),
+                value:
+                    userProvider.getSetting('enhanced_animations') != 'false',
+                onChanged: (value) {
+                  userProvider.updateSetting(
+                    'enhanced_animations',
+                    value.toString(),
+                  );
+                  Helpers.showSnackBar(
+                    context,
+                    value
+                        ? 'Enhanced animations enabled'
+                        : 'Enhanced animations disabled',
+                  );
+                },
+              ),
+            ] else ...[
+              const Divider(),
+
+              // Premium Upgrade Hint
+              ListTile(
+                leading: Icon(Icons.star, color: Colors.amber.shade600),
+                title: const Text('Premium Themes'),
+                subtitle: const Text(
+                  'Unlock custom colors and enhanced animations',
+                ),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade600,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'UPGRADE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                onTap: () =>
+                    showPremiumDialog(context, feature: 'Premium Themes'),
               ),
             ],
           ],
@@ -623,6 +826,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  String _getFontSizeDisplayName(String fontSize) {
+    switch (fontSize.toLowerCase()) {
+      case 'small':
+        return 'Small';
+      case 'large':
+        return 'Large';
+      case 'extra_large':
+        return 'Extra Large';
+      default:
+        return 'Medium';
+    }
+  }
+
+  String _getAppLanguageDisplayName(String language) {
+    switch (language.toLowerCase()) {
+      case 'es':
+        return 'Español';
+      case 'fr':
+        return 'Français';
+      case 'de':
+        return 'Deutsch';
+      case 'it':
+        return 'Italiano';
+      case 'ja':
+        return '日本語';
+      case 'ko':
+        return '한국어';
+      case 'zh':
+        return '中文';
+      default:
+        return 'English';
+    }
+  }
+
   void _showThemeDialog(BuildContext context, UserProvider userProvider) {
     showDialog(
       context: context,
@@ -656,6 +893,126 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (value) {
                 userProvider.updateSetting('theme_mode', value!);
                 Navigator.of(context).pop();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFontSizeDialog(BuildContext context, UserProvider userProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Font Size'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<String>(
+              title: const Text('Small'),
+              value: 'small',
+              groupValue: userProvider.getSetting('font_size'),
+              onChanged: (value) {
+                userProvider.updateSetting('font_size', value!);
+                Navigator.of(context).pop();
+                Helpers.showSnackBar(context, 'Font size updated');
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Medium'),
+              value: 'medium',
+              groupValue: userProvider.getSetting('font_size'),
+              onChanged: (value) {
+                userProvider.updateSetting('font_size', value!);
+                Navigator.of(context).pop();
+                Helpers.showSnackBar(context, 'Font size updated');
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Large'),
+              value: 'large',
+              groupValue: userProvider.getSetting('font_size'),
+              onChanged: (value) {
+                userProvider.updateSetting('font_size', value!);
+                Navigator.of(context).pop();
+                Helpers.showSnackBar(context, 'Font size updated');
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Extra Large'),
+              value: 'extra_large',
+              groupValue: userProvider.getSetting('font_size'),
+              onChanged: (value) {
+                userProvider.updateSetting('font_size', value!);
+                Navigator.of(context).pop();
+                Helpers.showSnackBar(context, 'Font size updated');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAppLanguageDialog(BuildContext context, UserProvider userProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('App Language'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<String>(
+              title: const Text('English'),
+              value: 'en',
+              groupValue: userProvider.getSetting('app_language'),
+              onChanged: (value) {
+                userProvider.updateSetting('app_language', value!);
+                Navigator.of(context).pop();
+                Helpers.showSnackBar(
+                  context,
+                  'Language updated (restart app to apply)',
+                );
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Español'),
+              value: 'es',
+              groupValue: userProvider.getSetting('app_language'),
+              onChanged: (value) {
+                userProvider.updateSetting('app_language', value!);
+                Navigator.of(context).pop();
+                Helpers.showSnackBar(
+                  context,
+                  'Idioma actualizado (reinicia la app para aplicar)',
+                );
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Français'),
+              value: 'fr',
+              groupValue: userProvider.getSetting('app_language'),
+              onChanged: (value) {
+                userProvider.updateSetting('app_language', value!);
+                Navigator.of(context).pop();
+                Helpers.showSnackBar(
+                  context,
+                  'Langue mise à jour (redémarrer l\'app pour appliquer)',
+                );
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Deutsch'),
+              value: 'de',
+              groupValue: userProvider.getSetting('app_language'),
+              onChanged: (value) {
+                userProvider.updateSetting('app_language', value!);
+                Navigator.of(context).pop();
+                Helpers.showSnackBar(
+                  context,
+                  'Sprache aktualisiert (App neu starten zum Anwenden)',
+                );
               },
             ),
           ],
@@ -737,16 +1094,128 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showCustomColorsDialog(BuildContext context) {
+  void _showCustomColorsDialog(
+    BuildContext context,
+    UserProvider userProvider,
+  ) {
+    final availableColors = [
+      {
+        'name': 'Default Blue',
+        'primary': Colors.blue,
+        'accent': Colors.blueAccent,
+      },
+      {
+        'name': 'Nature Green',
+        'primary': Colors.green,
+        'accent': Colors.greenAccent,
+      },
+      {
+        'name': 'Sunset Orange',
+        'primary': Colors.orange,
+        'accent': Colors.orangeAccent,
+      },
+      {
+        'name': 'Royal Purple',
+        'primary': Colors.purple,
+        'accent': Colors.purpleAccent,
+      },
+      {'name': 'Cherry Red', 'primary': Colors.red, 'accent': Colors.redAccent},
+      {
+        'name': 'Ocean Teal',
+        'primary': Colors.teal,
+        'accent': Colors.tealAccent,
+      },
+      {
+        'name': 'Rose Pink',
+        'primary': Colors.pink,
+        'accent': Colors.pinkAccent,
+      },
+      {
+        'name': 'Deep Indigo',
+        'primary': Colors.indigo,
+        'accent': Colors.indigoAccent,
+      },
+    ];
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Custom Colors'),
-        content: const Text('Custom color themes are coming soon!'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Choose your app color theme:'),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 300,
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 3,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: availableColors.length,
+                  itemBuilder: (context, index) {
+                    final colorTheme = availableColors[index];
+                    final isSelected =
+                        userProvider.getSetting('primary_color') ==
+                        colorTheme['primary'].toString();
+
+                    return GestureDetector(
+                      onTap: () {
+                        userProvider.updateSetting(
+                          'primary_color',
+                          colorTheme['primary'].toString(),
+                        );
+                        userProvider.updateSetting(
+                          'accent_color',
+                          colorTheme['accent'].toString(),
+                        );
+                        Navigator.of(context).pop();
+                        Helpers.showSnackBar(
+                          context,
+                          'Color theme "${colorTheme['name']}" applied!',
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              colorTheme['primary'] as Color,
+                              colorTheme['accent'] as Color,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          border: isSelected
+                              ? Border.all(color: Colors.white, width: 3)
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            colorTheme['name'] as String,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: const Text('Cancel'),
           ),
         ],
       ),

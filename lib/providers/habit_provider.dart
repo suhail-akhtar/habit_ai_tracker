@@ -3,6 +3,7 @@ import '../models/habit.dart';
 import '../models/habit_log.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../services/ai_cache_service.dart';
 import '../utils/constants.dart';
 
 class HabitProvider with ChangeNotifier {
@@ -157,6 +158,9 @@ class HabitProvider with ChangeNotifier {
       if (index != -1) {
         _habits[index] = updatedHabit;
 
+        // 🧠 NEW: Invalidate AI cache when habit is updated
+        await AICacheService.invalidateHabitCache(habit.id!);
+
         if (kDebugMode) {
           print('📝 HabitProvider: Updated habit "${updatedHabit.name}"');
         }
@@ -180,6 +184,9 @@ class HabitProvider with ChangeNotifier {
 
       await _databaseService.deleteHabit(habitId);
       _habits.removeWhere((habit) => habit.id == habitId);
+
+      // 🧠 NEW: Invalidate AI cache when habit is deleted
+      await AICacheService.invalidateHabitCache(habitId);
 
       if (kDebugMode) {
         print(
@@ -227,6 +234,9 @@ class HabitProvider with ChangeNotifier {
 
       await _databaseService.logHabit(habitLog);
       await _loadTodayLogs();
+
+      // 🧠 NEW: Invalidate AI cache when habit is completed (streak changed)
+      await AICacheService.invalidateHabitCache(habitId);
 
       // Check for streak achievements
       final streak = await _databaseService.getHabitStreak(habitId);

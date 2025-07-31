@@ -1,5 +1,5 @@
-name: ai_voice_habit_tracker
-description: An AI-powered habit tracker with voice input capabilities
+name: ai_habit_tracker
+description: "AI-powered habit tracker with voice input - Build better habits with intelligent coaching and smart reminders"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -59,3 +59,5 @@ flutter:
   
   assets:
     - assets/icons/
+    - assets/lottie/
+    - assets/audio/

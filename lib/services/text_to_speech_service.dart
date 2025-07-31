@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,6 +11,7 @@ class TextToSpeechService {
   FlutterTts? _flutterTts;
   bool _isInitialized = false;
   bool _isEnabled = false;
+  bool _isSpeaking = false;
   double _speechRate = 0.5;
   double _pitch = 1.0;
   double _volume = 0.8;
@@ -58,15 +60,31 @@ class TextToSpeechService {
 
       // Set up completion handler
       _flutterTts!.setCompletionHandler(() {
-        print('TTS completed');
+        _isSpeaking = false;
+        if (kDebugMode) {
+          print('🔊 TTS completed');
+        }
+      });
+
+      // Set up start handler
+      _flutterTts!.setStartHandler(() {
+        _isSpeaking = true;
+        if (kDebugMode) {
+          print('🔊 TTS started');
+        }
       });
 
       // Set up error handler
       _flutterTts!.setErrorHandler((msg) {
-        print('TTS Error: $msg');
+        _isSpeaking = false;
+        if (kDebugMode) {
+          print('🔊 TTS Error: $msg');
+        }
       });
     } catch (e) {
-      print('Error configuring TTS: $e');
+      if (kDebugMode) {
+        print('🔊 Error configuring TTS: $e');
+      }
     }
   }
 
@@ -83,8 +101,12 @@ class TextToSpeechService {
 
       // Speak the text
       await _flutterTts!.speak(cleanedText);
+      // Note: _isSpeaking is set to true in the start handler
     } catch (e) {
-      print('Error speaking text: $e');
+      _isSpeaking = false;
+      if (kDebugMode) {
+        print('🔊 Error speaking text: $e');
+      }
     }
   }
 
@@ -94,8 +116,12 @@ class TextToSpeechService {
 
     try {
       await _flutterTts!.stop();
+      _isSpeaking = false;
     } catch (e) {
-      print('Error stopping TTS: $e');
+      _isSpeaking = false;
+      if (kDebugMode) {
+        print('🔊 Error stopping TTS: $e');
+      }
     }
   }
 
@@ -264,10 +290,13 @@ class TextToSpeechService {
     if (_flutterTts == null) return false;
 
     try {
-      // Note: This is a placeholder implementation
-      // The actual TTS speaking status would need platform-specific implementation
-      return false;
+      // Use the flutter_tts package's built-in speaking status check
+      // This will return the actual TTS engine state
+      return _isSpeaking;
     } catch (e) {
+      if (kDebugMode) {
+        print('🔊 TextToSpeechService: Error checking speaking status: $e');
+      }
       return false;
     }
   }

@@ -147,7 +147,9 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
                     ),
                     const SizedBox(width: AppTheme.spacingS),
                     Text(
-                      'Premium: ${limits.remainingMessages} messages remaining today',
+                      limits.remainingMessages > 0
+                          ? 'Premium: ${limits.remainingMessages} messages remaining today'
+                          : 'Premium: ${Constants.premiumChatbotMessages}/${Constants.premiumChatbotMessages} messages used today',
                       style: AppTheme.bodySmall,
                     ),
                   ],
@@ -167,7 +169,9 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
                     const SizedBox(width: AppTheme.spacingS),
                     Expanded(
                       child: Text(
-                        'Free: ${limits.remainingMessages}/${Constants.freeChatbotMessages} messages left today',
+                        limits.remainingMessages > 0
+                            ? 'Free: ${limits.remainingMessages}/${Constants.freeChatbotMessages} messages left today'
+                            : 'Free: ${Constants.freeChatbotMessages}/${Constants.freeChatbotMessages} messages used today',
                         style: AppTheme.bodySmall,
                       ),
                     ),

@@ -576,11 +576,11 @@ Focus on gaps in their current routine and habits that complement what they alre
         success: true,
         message:
             "Here are some popular habit suggestions based on what successful people do:\n\n"
-                "1. **Morning Water** - Drink a glass of water first thing (daily)\n"
-                "2. **5-Minute Meditation** - Quick mindfulness practice (daily)\n"
-                "3. **Evening Reading** - Read for 15 minutes before bed (daily)\n"
-                "4. **Weekly Exercise** - 30-minute workout sessions (3x/week)\n" +
-            "5. **Daily Gratitude** - Write 3 things you're grateful for (daily)\n\n" +
+            "1. **Morning Water** - Drink a glass of water first thing (daily)\n"
+            "2. **5-Minute Meditation** - Quick mindfulness practice (daily)\n"
+            "3. **Evening Reading** - Read for 15 minutes before bed (daily)\n"
+            "4. **Weekly Exercise** - 30-minute workout sessions (3x/week)\n"
+            "5. **Daily Gratitude** - Write 3 things you're grateful for (daily)\n\n"
             "Which one sounds interesting? I can create it for you right away!",
         actionType: ActionType.createHabit,
         needsMoreInfo: true,
@@ -890,9 +890,33 @@ Focus on gaps in their current routine and habits that complement what they alre
   }
 
   List<dynamic> _filterLogsByTimeframe(List<dynamic> logs, String timeframe) {
-    // Simplified filtering for now - returns all logs
-    // TODO: Implement proper timeframe filtering based on log.completedAt
-    return logs;
+    final now = DateTime.now();
+    DateTime startDate;
+
+    switch (timeframe.toLowerCase()) {
+      case 'today':
+        startDate = DateTime(now.year, now.month, now.day);
+        break;
+      case 'week':
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        startDate = DateTime(startDate.year, startDate.month, startDate.day);
+        break;
+      case 'month':
+        startDate = DateTime(now.year, now.month, 1);
+        break;
+      default:
+        return logs; // Return all if timeframe not recognized
+    }
+
+    return logs.where((log) {
+      try {
+        final logDate = DateTime.parse(log['completed_at']);
+        return logDate.isAfter(startDate) ||
+            logDate.isAtSameMomentAs(startDate);
+      } catch (e) {
+        return false;
+      }
+    }).toList();
   }
 
   String _getProgressEncouragement(int completions, String timeframe) {
@@ -915,15 +939,25 @@ Focus on gaps in their current routine and habits that complement what they alre
     int totalCompletions = 0;
     final activeHabits = userHabits.where((h) => h.isActive).length;
 
-    // This is simplified - in real implementation, would check actual completion logs
-    for (final habit in userHabits) {
-      if (habit.id != null) {
-        // Add logic to count actual completions
-        totalCompletions += 3; // Placeholder
+    try {
+      // Get actual completion logs for all habits
+      for (final habit in userHabits) {
+        if (habit.id != null) {
+          final logs = await _databaseService.getHabitLogs(habit.id!);
+          final filteredLogs = _filterLogsByTimeframe(logs, timeframe);
+          totalCompletions += filteredLogs.length;
+        }
       }
-    }
 
-    return "📊 This $timeframe: $totalCompletions completions across $activeHabits active habits! ${_getProgressEncouragement(totalCompletions, timeframe)}";
+      final completionRate = activeHabits > 0
+          ? ((totalCompletions / activeHabits) * 100).round()
+          : 0;
+
+      return "📊 This $timeframe: $totalCompletions completions across $activeHabits active habits ($completionRate% completion rate)! ${_getProgressEncouragement(totalCompletions, timeframe)}";
+    } catch (e) {
+      // Fallback to basic message
+      return "📊 You have $activeHabits active habits! ${_getProgressEncouragement(totalCompletions, timeframe)}";
+    }
   }
 }
 

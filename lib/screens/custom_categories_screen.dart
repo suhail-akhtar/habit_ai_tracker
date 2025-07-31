@@ -303,10 +303,20 @@ class _CustomCategoriesScreenState extends State<CustomCategoriesScreen> {
     showDialog(context: context, builder: (context) => _CreateCategoryDialog());
   }
 
+  void _showEditCategoryDialog(CustomHabitCategory category) {
+    showDialog(
+      context: context,
+      builder: (context) => _EditCategoryDialog(category: category),
+    );
+  }
+
   void _showCategoryOptions(CustomHabitCategory category) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => _CategoryOptionsSheet(category: category),
+      builder: (context) => _CategoryOptionsSheet(
+        category: category,
+        onEdit: () => _showEditCategoryDialog(category),
+      ),
     );
   }
 }
@@ -516,10 +526,236 @@ class _CreateCategoryDialogState extends State<_CreateCategoryDialog> {
   }
 }
 
-class _CategoryOptionsSheet extends StatelessWidget {
+class _EditCategoryDialog extends StatefulWidget {
   final CustomHabitCategory category;
 
-  const _CategoryOptionsSheet({required this.category});
+  const _EditCategoryDialog({required this.category});
+
+  @override
+  State<_EditCategoryDialog> createState() => _EditCategoryDialogState();
+}
+
+class _EditCategoryDialogState extends State<_EditCategoryDialog> {
+  late TextEditingController _nameController;
+  late String _selectedIcon;
+  late Color _selectedColor;
+  bool _isLoading = false;
+
+  final List<String> _availableIcons = [
+    'category',
+    'sports',
+    'school',
+    'home',
+    'favorite',
+    'star',
+    'lightbulb',
+    'palette',
+    'shopping_cart',
+    'travel_explore',
+  ];
+
+  final List<Color> _availableColors = [
+    Colors.blue,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.red,
+    Colors.teal,
+    Colors.indigo,
+    Colors.pink,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.category.name);
+    _selectedIcon = widget.category.iconName;
+    _selectedColor = Helpers.getHabitColor(widget.category.colorCode);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Category'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Category Name',
+                hintText: 'Enter category name',
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingL),
+            const Text('Select Icon:', style: AppTheme.titleMedium),
+            const SizedBox(height: AppTheme.spacingS),
+            Wrap(
+              spacing: AppTheme.spacingS,
+              runSpacing: AppTheme.spacingS,
+              children: _availableIcons.map((iconName) {
+                final isSelected = _selectedIcon == iconName;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedIcon = iconName),
+                  child: Container(
+                    padding: const EdgeInsets.all(AppTheme.spacingS),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey,
+                        width: isSelected ? 2 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusS),
+                    ),
+                    child: Icon(
+                      _getIconFromName(iconName),
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: AppTheme.spacingL),
+            const Text('Select Color:', style: AppTheme.titleMedium),
+            const SizedBox(height: AppTheme.spacingS),
+            Wrap(
+              spacing: AppTheme.spacingS,
+              runSpacing: AppTheme.spacingS,
+              children: _availableColors.map((color) {
+                final isSelected = _selectedColor == color;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedColor = color),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusS),
+                      border: Border.all(
+                        color: isSelected ? Colors.black : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: isSelected
+                        ? const Icon(Icons.check, color: Colors.white)
+                        : null,
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _updateCategory,
+          child: _isLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Update'),
+        ),
+      ],
+    );
+  }
+
+  void _updateCategory() async {
+    if (_nameController.text.trim().isEmpty) {
+      Helpers.showSnackBar(
+        context,
+        'Please enter a category name',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final updatedCategory = widget.category.copyWith(
+        name: _nameController.text.trim(),
+        iconName: _selectedIcon,
+        colorCode: Helpers.colorToHex(_selectedColor),
+        updatedAt: DateTime.now(),
+      );
+
+      final success = await context
+          .read<CustomCategoryProvider>()
+          .updateCustomCategory(updatedCategory);
+
+      if (mounted) {
+        if (success) {
+          Navigator.of(context).pop();
+          Helpers.showSnackBar(context, 'Category updated successfully!');
+        } else {
+          final error = context.read<CustomCategoryProvider>().error;
+          Helpers.showSnackBar(
+            context,
+            error ?? 'Failed to update category',
+            isError: true,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Helpers.showSnackBar(context, 'Error: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  IconData _getIconFromName(String iconName) {
+    switch (iconName) {
+      case 'category':
+        return Icons.category;
+      case 'sports':
+        return Icons.sports;
+      case 'school':
+        return Icons.school;
+      case 'home':
+        return Icons.home;
+      case 'favorite':
+        return Icons.favorite;
+      case 'star':
+        return Icons.star;
+      case 'lightbulb':
+        return Icons.lightbulb;
+      case 'palette':
+        return Icons.palette;
+      case 'shopping_cart':
+        return Icons.shopping_cart;
+      case 'travel_explore':
+        return Icons.travel_explore;
+      default:
+        return Icons.category;
+    }
+  }
+}
+
+class _CategoryOptionsSheet extends StatelessWidget {
+  final CustomHabitCategory category;
+  final VoidCallback? onEdit;
+
+  const _CategoryOptionsSheet({required this.category, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -544,8 +780,7 @@ class _CategoryOptionsSheet extends StatelessWidget {
             title: const Text('Edit Category'),
             onTap: () {
               Navigator.pop(context);
-              // TODO: Implement edit functionality
-              Helpers.showSnackBar(context, 'Edit feature coming soon!');
+              onEdit?.call();
             },
           ),
           ListTile(

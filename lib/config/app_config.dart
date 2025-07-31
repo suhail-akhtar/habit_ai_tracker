@@ -1,13 +1,14 @@
-class AppConfig {
-  static const String appName = 'AI Voice Habit Tracker';
-  static const String appVersion = '1.0.0';
+import 'environment.dart';
 
-  // 🔧 FIXED: Gemini API Configuration for gemini-2.5-flash
-  static const String geminiApiKey = 'AIzaSyCJAWyjQhW7ivN6S9otf-9GiH28QwU-Dis';
-  static const String geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models';
-  static const String geminiModel =
-      'gemini-2.5-flash'; // ✅ Your accessible model
+class AppConfig {
+  static const String appName = 'AI Habit Tracker';
+  static const String appVersion = '1.0.0';
+  static const String packageName = 'com.aaasofttech.aihabittracker';
+
+  // � SECURE: API Configuration using Environment
+  static String get geminiApiKey => Environment.geminiApiKey;
+  static String get geminiBaseUrl => Environment.baseUrl;
+  static const String geminiModel = 'gemini-2.5-flash';
 
   // API endpoint construction
   static String get geminiEndpoint =>

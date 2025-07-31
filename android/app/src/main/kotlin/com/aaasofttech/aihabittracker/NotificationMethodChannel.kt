@@ -1,4 +1,4 @@
-package com.example.habit_ai_tracker
+package com.aaasofttech.aihabittracker
 
 import android.app.AlarmManager
 import android.app.PendingIntent

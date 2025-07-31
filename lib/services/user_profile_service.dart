@@ -11,7 +11,6 @@ class UserProfileService {
   Future<UserAIProfile> getUserAIProfile(List<Habit> habits) async {
     try {
       final now = DateTime.now();
-      final last7Days = now.subtract(const Duration(days: 7));
       final last30Days = now.subtract(const Duration(days: 30));
 
       // Get habit completion data

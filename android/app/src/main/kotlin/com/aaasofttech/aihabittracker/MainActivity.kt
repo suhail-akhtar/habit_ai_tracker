@@ -1,4 +1,4 @@
-package com.example.habit_ai_tracker
+package com.aaasofttech.aihabittracker
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -56,22 +56,22 @@ class MainActivity : FlutterActivity() {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             registerReceiver(
                     alarmActionReceiver,
-                    IntentFilter("com.example.habit_ai_tracker.ALARM_ACTION"),
+                    IntentFilter("com.aaasofttech.aihabittracker.ALARM_ACTION"),
                     Context.RECEIVER_NOT_EXPORTED
             )
             registerReceiver(
                     ringingActionReceiver,
-                    IntentFilter("com.example.habit_ai_tracker.RINGING_ACTION"),
+                    IntentFilter("com.aaasofttech.aihabittracker.RINGING_ACTION"),
                     Context.RECEIVER_NOT_EXPORTED
             )
         } else {
             registerReceiver(
                     alarmActionReceiver,
-                    IntentFilter("com.example.habit_ai_tracker.ALARM_ACTION")
+                    IntentFilter("com.aaasofttech.aihabittracker.ALARM_ACTION")
             )
             registerReceiver(
                     ringingActionReceiver,
-                    IntentFilter("com.example.habit_ai_tracker.RINGING_ACTION")
+                    IntentFilter("com.aaasofttech.aihabittracker.RINGING_ACTION")
             )
         }
     }

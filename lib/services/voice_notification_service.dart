@@ -394,13 +394,11 @@ Respond in JSON format:
     );
 
     String message;
-    List<int> habitIds = [];
 
     switch (type) {
       case QuickReminderType.habitCheck:
         message =
             "🏆 Quick habit check! How are you doing with your routines today?";
-        habitIds = userHabits.take(3).map((h) => h.id!).toList();
         break;
       case QuickReminderType.motivationalBoost:
         message =

@@ -13,6 +13,7 @@ import 'screens/habit_setup_screen.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/ai_chatbot_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/notification_service.dart';
 import 'utils/theme.dart';
 import 'config/app_config.dart';
@@ -48,7 +49,7 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: _getThemeMode(userProvider.getSetting('theme_mode')),
-            home: const MainNavigationScreen(),
+            home: const AppShell(),
             routes: {
               '/dashboard': (context) => const DashboardScreen(),
               '/voice': (context) => const VoiceInputScreen(),
@@ -80,6 +81,31 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
   }
 }
 
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
+
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  bool _showSplash = true;
+
+  void _onSplashComplete() {
+    setState(() {
+      _showSplash = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return SplashScreen(onSplashComplete: _onSplashComplete);
+    }
+    return const MainNavigationScreen();
+  }
+}
+
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
@@ -90,13 +116,29 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = const [
-    DashboardScreen(),
-    VoiceInputScreen(),
-    HabitSetupScreen(),
-    AnalyticsScreen(),
-    AIChatbotScreen(),
-    SettingsScreen(),
+  void _switchToTab(int index) {
+    if (mounted && index >= 0 && index < _screens.length) {
+      setState(() {
+        _selectedIndex = index;
+      });
+
+      // Ensure the UI updates properly
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          // Force a rebuild to ensure navigation bar is visible
+          setState(() {});
+        }
+      });
+    }
+  }
+
+  List<Widget> get _screens => [
+    const DashboardScreen(),
+    const VoiceInputScreen(),
+    HabitSetupScreen(onTabSwitch: _switchToTab),
+    const AnalyticsScreen(),
+    const AIChatbotScreen(),
+    const SettingsScreen(),
   ];
 
   @override

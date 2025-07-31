@@ -50,7 +50,6 @@ class _PremiumDialogState extends State<PremiumDialog>
   Widget build(BuildContext context) {
     // 🔧 FIXED: Get screen dimensions for better positioning
     final screenHeight = MediaQuery.of(context).size.height;
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final safeAreaPadding = MediaQuery.of(context).padding;
 
     return WillPopScope(
@@ -422,8 +421,15 @@ class _PremiumDialogState extends State<PremiumDialog>
   }
 }
 
-class PricingOptionsDialog extends StatelessWidget {
+class PricingOptionsDialog extends StatefulWidget {
   const PricingOptionsDialog({super.key});
+
+  @override
+  State<PricingOptionsDialog> createState() => _PricingOptionsDialogState();
+}
+
+class _PricingOptionsDialogState extends State<PricingOptionsDialog> {
+  String selectedPlan = 'yearly'; // Default to recommended yearly plan
 
   @override
   Widget build(BuildContext context) {
@@ -439,6 +445,8 @@ class PricingOptionsDialog extends StatelessWidget {
             'per month',
             'Most flexible',
             false,
+            selectedPlan == 'monthly',
+            () => setState(() => selectedPlan = 'monthly'),
           ),
           const SizedBox(height: AppTheme.spacingM),
           _buildPricingOption(
@@ -448,6 +456,8 @@ class PricingOptionsDialog extends StatelessWidget {
             'per year',
             'Save 17%',
             true,
+            selectedPlan == 'yearly',
+            () => setState(() => selectedPlan = 'yearly'),
           ),
         ],
       ),
@@ -456,7 +466,50 @@ class PricingOptionsDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
+        ElevatedButton(
+          onPressed: () => _handleSubscribe(context),
+          child: Text(
+            'Subscribe ${selectedPlan == 'yearly' ? 'Yearly' : 'Monthly'}',
+          ),
+        ),
       ],
+    );
+  }
+
+  void _handleSubscribe(BuildContext context) async {
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Simulate subscription process
+    await Future.delayed(const Duration(seconds: 2));
+
+    // Close loading dialog
+    Navigator.of(context).pop();
+
+    // Update user provider
+    await context.read<UserProvider>().upgradeToPremium();
+
+    // Close pricing dialog
+    Navigator.of(context).pop();
+
+    // Close premium dialog if still open
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Welcome to Premium! 🎉 (${selectedPlan == 'yearly' ? 'Yearly' : 'Monthly'} plan)',
+        ),
+        backgroundColor: AppTheme.successColor,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -467,74 +520,128 @@ class PricingOptionsDialog extends StatelessWidget {
     String period,
     String badge,
     bool isRecommended,
+    bool isSelected,
+    VoidCallback onTap,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingM),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: isRecommended
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.outline.withOpacity(0.3),
-          width: isRecommended ? 2 : 1,
-        ),
-        borderRadius: BorderRadius.circular(AppTheme.radiusM),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: AppTheme.titleMedium),
-              if (isRecommended)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacingS,
-                    vertical: AppTheme.spacingXS,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusS),
-                  ),
-                  child: Text(
-                    'RECOMMENDED',
-                    style: AppTheme.bodySmall.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : (isRecommended
+                      ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
+                      : Theme.of(context).colorScheme.outline.withOpacity(0.3)),
+            width: isSelected ? 3 : (isRecommended ? 2 : 1),
           ),
-          const SizedBox(height: AppTheme.spacingXS),
-          RichText(
-            text: TextSpan(
-              text: price,
-              style: AppTheme.headlineSmall.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
+          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TextSpan(
-                  text: ' $period',
-                  style: AppTheme.bodyMedium.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.7),
-                  ),
+                Text(title, style: AppTheme.titleMedium),
+                Row(
+                  children: [
+                    if (isSelected)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingS,
+                          vertical: AppTheme.spacingXS,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusS),
+                        ),
+                        child: Text(
+                          'SELECTED',
+                          style: AppTheme.bodySmall.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    if (isRecommended && !isSelected) ...[
+                      if (isSelected) const SizedBox(width: AppTheme.spacingS),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingS,
+                          vertical: AppTheme.spacingXS,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.successColor,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusS),
+                        ),
+                        child: Text(
+                          'RECOMMENDED',
+                          style: AppTheme.bodySmall.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: AppTheme.spacingXS),
-          Text(
-            badge,
-            style: AppTheme.bodySmall.copyWith(
-              color: AppTheme.successColor,
-              fontWeight: FontWeight.w600,
+            const SizedBox(height: AppTheme.spacingXS),
+            RichText(
+              text: TextSpan(
+                text: price,
+                style: AppTheme.headlineSmall.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+                children: [
+                  TextSpan(
+                    text: ' $period',
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: AppTheme.spacingXS),
+            Text(
+              badge,
+              style: AppTheme.bodySmall.copyWith(
+                color: AppTheme.successColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (isSelected) ...[
+              const SizedBox(height: AppTheme.spacingS),
+              Row(
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: AppTheme.spacingXS),
+                  Text(
+                    'Tap Subscribe to continue',
+                    style: AppTheme.bodySmall.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

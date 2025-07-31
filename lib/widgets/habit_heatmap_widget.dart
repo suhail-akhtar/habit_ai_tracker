@@ -241,19 +241,24 @@ class _HabitHeatmapWidgetState extends State<HabitHeatmapWidget> {
   }
 
   Widget _buildWeekdayLabels(BuildContext context) {
-    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
     return Padding(
-      padding: const EdgeInsets.only(left: 24, bottom: 4),
-      child: Column(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
         children: weekdays
             .map(
               (day) => SizedBox(
-                height: 16,
-                child: Text(
-                  day,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                width:
+                    16, // Match the width of heatmap cells (14px + 2px margin)
+                child: Center(
+                  child: Text(
+                    day,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),

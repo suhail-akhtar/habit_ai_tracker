@@ -811,13 +811,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Premium upgrade coming soon!'),
-                        ),
-                      );
-                    },
+                    onPressed: () => showPremiumDialog(
+                      context,
+                      feature: 'Advanced Analytics',
+                    ),
                     child: const Text('Upgrade to Premium'),
                   ),
                 ],
