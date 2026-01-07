@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart'; // For kDebugMode
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/habit_provider.dart';
@@ -26,6 +27,12 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   String _selectedIcon = Constants.habitIcons.first;
   Color _selectedColor = Constants.habitColors.first;
   int _targetFrequency = 1;
+  
+  // 🕒 NEW: Flexible Scheduling State
+  String _frequencyType = 'daily';
+  int _intervalMinutes = 60;
+  TimeOfDay _windowStartTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _windowEndTime = const TimeOfDay(hour: 21, minute: 0);
 
   bool _isLoading = false;
 
@@ -43,6 +50,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
 
   void _checkPremiumLimitsOnLoad() {
     if (widget.habitToEdit != null) return; // Editing existing habit
+    if (!mounted) return;
 
     final userProvider = context.read<UserProvider>();
     final validation = userProvider.validateHabitCreation();
@@ -50,10 +58,13 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     if (!validation.isAllowed) {
       // Show premium dialog immediately and go back
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         showPremiumDialog(
           context,
           feature: 'Create more than ${Constants.freeHabitLimit} habits',
-          onClose: () => Navigator.of(context).pop(),
+          onClose: () {
+            if (mounted) Navigator.of(context).pop();
+          },
         );
       });
     }
@@ -67,6 +78,20 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     _selectedIcon = habit.iconName;
     _selectedColor = habit.color;
     _targetFrequency = habit.targetFrequency;
+    
+    // 🕒 NEW: Load Scheduling Data
+    _frequencyType = habit.frequencyType;
+    if (habit.intervalMinutes != null) {
+      _intervalMinutes = habit.intervalMinutes!;
+    }
+    if (habit.windowStartTime != null) {
+      final split = habit.windowStartTime!.split(':');
+      _windowStartTime = TimeOfDay(hour: int.parse(split[0]), minute: int.parse(split[1]));
+    }
+    if (habit.windowEndTime != null) {
+      final split = habit.windowEndTime!.split(':');
+      _windowEndTime = TimeOfDay(hour: int.parse(split[0]), minute: int.parse(split[1]));
+    }
   }
 
   @override
@@ -472,36 +497,281 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Target Frequency', style: AppTheme.titleMedium),
+            Text('Schedule & Frequency', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
+            
+            // Scheduling Type Selection
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(AppTheme.radiusM),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _frequencyType = 'daily'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _frequencyType == 'daily' 
+                              ? Theme.of(context).colorScheme.primary 
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Simple Goal',
+                            style: TextStyle(
+                              color: _frequencyType == 'daily' ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: _frequencyType == 'daily' ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _frequencyType = 'interval';
+                          _updateCalculatedFrequency();
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _frequencyType == 'interval' 
+                              ? Theme.of(context).colorScheme.primary 
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Recurring',
+                            style: TextStyle(
+                              color: _frequencyType == 'interval' ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: _frequencyType == 'interval' ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingL),
+
+            if (_frequencyType == 'daily') _buildDailyControls() else _buildIntervalControls(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyControls() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Times per day:', style: AppTheme.bodyLarge),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Daily', style: AppTheme.bodyMedium),
-                Switch(
-                  value: _targetFrequency == 1,
-                  onChanged: (value) {
-                    setState(() {
-                      _targetFrequency = value ? 1 : 7;
-                    });
-                  },
+                IconButton.filledTonal(
+                  onPressed: _targetFrequency > 1 
+                      ? () => setState(() => _targetFrequency--) 
+                      : null,
+                  icon: const Icon(Icons.remove),
                 ),
-                Text('Weekly', style: AppTheme.bodyMedium),
+                SizedBox(
+                  width: 40,
+                  child: Center(
+                    child: Text(
+                      '$_targetFrequency',
+                      style: AppTheme.titleLarge.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                IconButton.filledTonal(
+                  onPressed: _targetFrequency < 50 
+                      ? () => setState(() => _targetFrequency++) 
+                      : null,
+                  icon: const Icon(Icons.add),
+                ),
               ],
             ),
-            const SizedBox(height: AppTheme.spacingS),
-            Text(
-              _targetFrequency == 1
-                  ? 'Complete this habit every day'
-                  : 'Complete this habit once per week',
-              style: AppTheme.bodySmall.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+          ],
+        ),
+        const SizedBox(height: AppTheme.spacingS),
+        Text(
+          'You will aim to complete this $_targetFrequency times at any time during the day.',
+          style: AppTheme.bodySmall.copyWith(color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIntervalControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Repeat Every:', style: AppTheme.bodyMedium),
+        const SizedBox(height: AppTheme.spacingS),
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: _intervalMinutes < 60 ? _intervalMinutes : (_intervalMinutes % 60 == 0 ? _intervalMinutes : 60),
+                    isExpanded: true,
+                    items: const [
+                       DropdownMenuItem(value: 15, child: Text('15 Minutes')),
+                       DropdownMenuItem(value: 30, child: Text('30 Minutes')),
+                       DropdownMenuItem(value: 45, child: Text('45 Minutes')),
+                       DropdownMenuItem(value: 60, child: Text('1 Hour')),
+                       DropdownMenuItem(value: 90, child: Text('1.5 Hours')),
+                       DropdownMenuItem(value: 120, child: Text('2 Hours')),
+                       DropdownMenuItem(value: 180, child: Text('3 Hours')),
+                       DropdownMenuItem(value: 240, child: Text('4 Hours')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() {
+                          _intervalMinutes = val;
+                          _updateCalculatedFrequency();
+                        });
+                      }
+                    },
+                  ),
+                ),
               ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppTheme.spacingL),
+        
+        Text('Active Hours:', style: AppTheme.bodyMedium),
+        const SizedBox(height: AppTheme.spacingS),
+        Row(
+          children: [
+            Expanded(
+              child: _buildTimePickerButton(
+                time: _windowStartTime,
+                label: 'Start',
+                onPick: (t) {
+                  setState(() {
+                    _windowStartTime = t;
+                    _updateCalculatedFrequency();
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Icon(Icons.arrow_forward, color: Colors.grey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildTimePickerButton(
+                time: _windowEndTime,
+                label: 'End',
+                onPick: (t) {
+                   setState(() {
+                    _windowEndTime = t;
+                    _updateCalculatedFrequency();
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: AppTheme.spacingL),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Based on this schedule, your target is approx $_targetFrequency times per day.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimePickerButton({
+    required TimeOfDay time, 
+    required String label, 
+    required Function(TimeOfDay) onPick
+  }) {
+    return InkWell(
+      onTap: () async {
+        final picked = await showTimePicker(context: context, initialTime: time);
+        if (picked != null) onPick(picked);
+      },
+      borderRadius: BorderRadius.circular(AppTheme.radiusM),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            const SizedBox(height: 4),
+            Text(
+              time.format(context),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _updateCalculatedFrequency() {
+    int startMins = _windowStartTime.hour * 60 + _windowStartTime.minute;
+    int endMins = _windowEndTime.hour * 60 + _windowEndTime.minute;
+    
+    // Handle overnight schedules (e.g. 23:00 to 07:00)
+    int diff = endMins - startMins;
+    if (diff <= 0) diff += 24 * 60;
+    
+    if (_intervalMinutes > 0) {
+      int count = (diff / _intervalMinutes).floor();
+      // Ensure at least 1
+      if (count < 1) count = 1; 
+      // Cap at 50 for safety
+      if (count > 50) count = 50;
+      
+      setState(() {
+        _targetFrequency = count;
+      });
+    }
   }
 
   Widget _buildActionButtons(
@@ -545,12 +815,26 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     );
   }
 
-  void _handleCancel() {
+  Future<void> _handleCancel() async {
+    // 🔧 FIXED: Unfocus input to close keyboard gracefully before navigation
+    // This prevents IME/platform view crashes on some Android versions
+    final currentFocus = FocusScope.of(context);
+    if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
+      currentFocus.unfocus();
+      // Allow a brief moment for keyboard animation to start
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    
+    if (!mounted) return;
+
     try {
-      Navigator.of(context).pop();
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      }
     } catch (e) {
-      // If pop fails, navigate to dashboard
-      Navigator.of(context).pushReplacementNamed('/dashboard');
+      if (kDebugMode) print('Navigation error: $e');
     }
   }
 
@@ -589,6 +873,16 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         colorCode: Helpers.colorToHex(_selectedColor),
         iconName: _selectedIcon,
         isActive: true,
+        // 🕒 NEW: Save Scheduling Data
+        frequencyType: _frequencyType,
+        intervalMinutes: _frequencyType == 'interval' ? _intervalMinutes : null,
+        windowStartTime: _frequencyType == 'interval' 
+            ? '${_windowStartTime.hour}:${_windowStartTime.minute.toString().padLeft(2, '0')}' 
+            : null,
+        windowEndTime: _frequencyType == 'interval' 
+            ? '${_windowEndTime.hour}:${_windowEndTime.minute.toString().padLeft(2, '0')}' 
+            : null,
+        
         createdAt: widget.habitToEdit?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );

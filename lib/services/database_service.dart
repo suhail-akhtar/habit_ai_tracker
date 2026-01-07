@@ -10,7 +10,7 @@ class DatabaseService {
   static Database? _database;
   static const String _databaseName = 'habit_tracker.db';
   static const int _databaseVersion =
-      2; // 🔔 UPDATED: Version 2 for notifications
+      5; // 🔔 UPDATED: Version 5 for flexible scheduling
 
   Future<Database> get database async {
     _database ??= await _initDB();
@@ -40,6 +40,11 @@ class DatabaseService {
         color_code TEXT NOT NULL,
         icon_name TEXT NOT NULL,
         is_active INTEGER DEFAULT 1,
+        has_freeze INTEGER DEFAULT 0,
+        frequency_type TEXT DEFAULT 'daily',
+        interval_minutes INTEGER,
+        window_start_time TEXT,
+        window_end_time TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -53,6 +58,7 @@ class DatabaseService {
         note TEXT,
         input_method TEXT NOT NULL,
         mood_rating INTEGER,
+        status TEXT DEFAULT 'completed',
         FOREIGN KEY (habit_id) REFERENCES habits (id) ON DELETE CASCADE
       )
     ''');
@@ -139,6 +145,36 @@ class DatabaseService {
         'CREATE INDEX idx_notification_settings_enabled ON notification_settings(is_enabled)',
       );
     }
+
+    if (oldVersion < 3) {
+      // 🔔 ADD: Freeze column for existing databases
+      await db.execute(
+        'ALTER TABLE habits ADD COLUMN has_freeze INTEGER DEFAULT 0',
+      );
+    }
+    
+    if (oldVersion < 4) {
+      // 🔔 ADD: Status column for logs (skips/freezes)
+      await db.execute(
+        "ALTER TABLE habit_logs ADD COLUMN status TEXT DEFAULT 'completed'",
+      );
+    }
+
+    if (oldVersion < 5) {
+      // 🔔 ADD: Flexible scheduling columns
+      await db.execute(
+        "ALTER TABLE habits ADD COLUMN frequency_type TEXT DEFAULT 'daily'",
+      );
+      await db.execute(
+        'ALTER TABLE habits ADD COLUMN interval_minutes INTEGER',
+      );
+      await db.execute(
+        'ALTER TABLE habits ADD COLUMN window_start_time TEXT',
+      );
+      await db.execute(
+        'ALTER TABLE habits ADD COLUMN window_end_time TEXT',
+      );
+    }
   }
 
   // Habit CRUD operations (existing - unchanged)
@@ -190,6 +226,25 @@ class DatabaseService {
     return await db.delete('habits', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<Map<DateTime, int>> getHeatmapData() async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT DATE(completed_at) as date, COUNT(*) as count 
+      FROM habit_logs 
+      GROUP BY DATE(completed_at)
+    ''');
+
+    final Map<DateTime, int> heatmapData = {};
+    for (var row in result) {
+      final dateStr = row['date'] as String;
+      final count = row['count'] as int;
+      final date = DateTime.parse(dateStr);
+      // Normalized date (strip time)
+      heatmapData[DateTime(date.year, date.month, date.day)] = count;
+    }
+    return heatmapData;
+  }
+
   // Habit log operations (existing - unchanged)
   Future<int> logHabit(HabitLog habitLog) async {
     final db = await database;
@@ -224,28 +279,96 @@ class DatabaseService {
 
   Future<int> getHabitStreak(int habitId) async {
     final db = await database;
-    final result = await db.rawQuery(
-      '''
-      SELECT COUNT(*) as streak FROM (
-        SELECT DATE(completed_at) as log_date 
-        FROM habit_logs 
-        WHERE habit_id = ? 
-        GROUP BY DATE(completed_at)
-        ORDER BY log_date DESC
-      ) WHERE log_date >= DATE('now', '-' || (
-        SELECT COUNT(*) FROM (
-          SELECT DATE(completed_at) as log_date 
-          FROM habit_logs 
-          WHERE habit_id = ? 
-          GROUP BY DATE(completed_at)
-          ORDER BY log_date DESC
-        )
-      ) || ' days')
-    ''',
-      [habitId, habitId],
+
+    // 0. Get Habit Target
+    final habitResult = await db.query(
+      'habits',
+      columns: ['target_frequency'],
+      where: 'id = ?',
+      whereArgs: [habitId],
+    );
+    if (habitResult.isEmpty) return 0;
+    final target = (habitResult.first['target_frequency'] as int?) ?? 1;
+
+    // 1. Fetch all logs sorted by date DESC
+    final result = await db.query(
+      'habit_logs',
+      columns: ['completed_at', 'status'],
+      where: 'habit_id = ?',
+      whereArgs: [habitId],
+      orderBy: 'completed_at DESC',
     );
 
-    return result.first['streak'] as int;
+    if (result.isEmpty) return 0;
+
+    // 2. Process logs into a Date -> Count/Status map
+    final Map<String, int> dailyCount = {};
+    final Map<String, String> dailyStatus = {};
+    
+    for (var row in result) {
+      final dateStr = (row['completed_at'] as String).substring(0, 10);
+      final status = (row['status'] as String?) ?? 'completed';
+      
+      if (status == 'completed') {
+        dailyCount[dateStr] = (dailyCount[dateStr] ?? 0) + 1;
+      } else if (status == 'skipped') {
+        // If ANY skip exists for the day, we mark day as skipped (frozen)
+        dailyStatus[dateStr] = 'skipped'; 
+      }
+    }
+
+    // 3. Calculate Streak
+    int streak = 0;
+    final now = DateTime.now();
+    DateTime checkDate = DateTime(now.year, now.month, now.day);
+    
+    // Check if we have an entry for Today
+    final todayKey = checkDate.toIso8601String().substring(0, 10);
+    final todayCount = dailyCount[todayKey] ?? 0;
+    final todayStatus = dailyStatus[todayKey];
+    
+    // If today is NOT met (count < target) AND NOT skipped, we don't count it,
+    // BUT we also don't break streak yet (user has time left).
+    // So we start checking from Yesterday.
+    // UNLESS user has ALREADY met the target today, then we count it.
+    
+    bool countToday = false;
+    if (todayStatus == 'skipped') {
+       // Skipped today -> streak frozen, don't increment, start check from yesterday
+       checkDate = checkDate.subtract(const Duration(days: 1));
+    } else if (todayCount >= target) {
+      // Completed today -> increment streak, start check from yesterday (handled in loop)
+      countToday = true;
+    } else {
+      // Incomplete today -> ignore today, start check from yesterday
+      checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+
+    // Loop logic
+    if (countToday) {
+       streak++;
+       checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+
+    // Iterate backwards
+    while (true) {
+      final checkKey = checkDate.toIso8601String().substring(0, 10);
+      
+      final count = dailyCount[checkKey] ?? 0;
+      final status = dailyStatus[checkKey];
+
+      if (status == 'skipped') {
+         // Skip maintains the streak but does not increment it
+      } else if (count >= target) {
+         streak++;
+      } else {
+         // Target not met and not skipped -> Break
+         break;
+      }
+      checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+
+    return streak;
   }
 
   // 🔔 NEW: Notification settings CRUD operations

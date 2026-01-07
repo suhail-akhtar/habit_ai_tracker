@@ -8,11 +8,13 @@ class AnalyticsProvider with ChangeNotifier {
   final GeminiService _geminiService = GeminiService();
 
   Map<String, dynamic> _analytics = {};
+  Map<DateTime, int> _heatmapData = {};
   String? _weeklyInsight;
   bool _isLoading = false;
   String? _error;
 
   Map<String, dynamic> get analytics => _analytics;
+  Map<DateTime, int> get heatmapData => _heatmapData;
   String? get weeklyInsight => _weeklyInsight;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -21,6 +23,7 @@ class AnalyticsProvider with ChangeNotifier {
     _setLoading(true);
     try {
       _analytics = await _databaseService.getAnalytics();
+      _heatmapData = await _databaseService.getHeatmapData();
       await _loadWeeklyInsight();
       _clearError();
     } catch (e) {
@@ -89,6 +92,10 @@ class AnalyticsProvider with ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  Future<String> getDailyTip() async {
+    return await _geminiService.generateDailyTip();
   }
 
   Map<String, dynamic> getHabitAnalytics(int habitId) {

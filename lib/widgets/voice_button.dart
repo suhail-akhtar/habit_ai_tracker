@@ -126,16 +126,46 @@ class _VoiceButtonState extends State<VoiceButton>
     BuildContext context,
     VoiceProvider voiceProvider,
   ) {
-    return FloatingActionButton(
-      onPressed: _isButtonEnabled(voiceProvider)
-          ? () => _handleButtonPress(voiceProvider)
-          : null,
-      backgroundColor: _getButtonColor(context, voiceProvider),
-      foregroundColor: _getIconColor(context, voiceProvider),
-      elevation: voiceProvider.isListening ? 8 : 4,
-      child: AnimatedSwitcher(
-        duration: AppTheme.shortAnimation,
-        child: _buildButtonIcon(voiceProvider),
+    return Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: voiceProvider.isListening
+              ? [AppTheme.successColor, const Color(0xFF34D399)]
+              : [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.tertiary
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: (voiceProvider.isListening
+                    ? AppTheme.successColor
+                    : Theme.of(context).colorScheme.primary)
+                .withOpacity(0.4),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _isButtonEnabled(voiceProvider)
+              ? () => _handleButtonPress(voiceProvider)
+              : null,
+          customBorder: const CircleBorder(),
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: AppTheme.shortAnimation,
+              child: _buildButtonIcon(voiceProvider),
+            ),
+          ),
+        ),
       ),
     );
   }

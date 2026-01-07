@@ -41,6 +41,16 @@ class GeminiService {
     }
   }
 
+  Future<String> generateDailyTip() async {
+    try {
+      const prompt = "Give me a short, punchy, motivational tip about habit building. Max 20 words. Be encouraging.";
+      final response = await _callGeminiAPI(prompt);
+      return response.trim();
+    } catch (e) {
+      return "Consistency is key. Even a small step forward is progress.";
+    }
+  }
+
   Future<String> generateWeeklyInsight(
     Map<String, dynamic> analyticsData,
   ) async {

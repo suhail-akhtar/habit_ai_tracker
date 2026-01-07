@@ -3,6 +3,7 @@ import '../models/habit.dart';
 import '../models/habit_log.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../services/widget_service.dart';
 import '../utils/constants.dart';
 
 class HabitProvider with ChangeNotifier {
@@ -43,11 +44,27 @@ class HabitProvider with ChangeNotifier {
     return maxStreak;
   }
 
+  Future<void> _updateWidgets() async {
+    try {
+      final active = habitCount;
+      final completed = _todayLogs.length; // Approximate, assumes 1 log per habit per day max for simplicity or filter unique habit_ids
+      
+      // Calculate real completed count (unique habits completed today)
+      final completedUnique = _todayLogs.map((l) => l.habitId).toSet().length;
+
+      await WidgetService.updateHabitStatus(completedUnique, active);
+      await WidgetService.updateStreak(longestStreak);
+    } catch (e) {
+      print('Widget update failed: $e');
+    }
+  }
+
   Future<void> loadHabits() async {
     _setLoading(true);
     try {
       _habits = await _databaseService.getActiveHabits();
       await _loadTodayLogs();
+      _updateWidgets(); // Update widgets after loading
 
       if (kDebugMode) {
         print('📱 HabitProvider: Loaded ${_habits.length} habits');
@@ -223,10 +240,12 @@ class HabitProvider with ChangeNotifier {
         completedAt: DateTime.now(),
         note: note,
         inputMethod: inputMethod,
+        status: 'completed',
       );
 
       await _databaseService.logHabit(habitLog);
       await _loadTodayLogs();
+      _updateWidgets(); // Update widgets
 
       // Check for streak achievements
       final streak = await _databaseService.getHabitStreak(habitId);
@@ -261,7 +280,8 @@ class HabitProvider with ChangeNotifier {
         habitId: habitId,
         completedAt: DateTime.now(),
         note: note ?? 'Skipped',
-        inputMethod: 'skip',
+        inputMethod: 'manual',
+        status: 'skipped',
       );
 
       await _databaseService.logHabit(habitLog);
@@ -280,14 +300,36 @@ class HabitProvider with ChangeNotifier {
 
   // 🔧 ENHANCED: Validate habit completion with active status check
   bool isHabitCompletedToday(int habitId) {
-    // Ensure habit is still active
+    final count = getCompletionCountToday(habitId);
+    
+    // Ensure habit is still active and get target
     final habit = _habits.firstWhere(
       (h) => h.id == habitId,
       orElse: () => throw Exception('Habit not found'),
     );
+    
+    // If skipped, it counts as "completed" for UI purposes (streak maintained)
+    // or we might want a distinct "skipped" state.
+    // For now, let's keep boolean simple, but use count for details.
+    if (isHabitSkippedToday(habitId)) return true;
 
-    if (!habit.isActive) return false;
+    return count >= habit.targetFrequency;
+  }
 
+  int getCompletionCountToday(int habitId) {
+    final today = DateTime.now();
+    final todayStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+    return _todayLogs.where(
+      (log) =>
+          log.habitId == habitId &&
+          log.completedAt.toIso8601String().startsWith(todayStr) &&
+          log.status == 'completed'
+    ).length;
+  }
+
+  bool isHabitSkippedToday(int habitId) {
     final today = DateTime.now();
     final todayStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
@@ -296,7 +338,7 @@ class HabitProvider with ChangeNotifier {
       (log) =>
           log.habitId == habitId &&
           log.completedAt.toIso8601String().startsWith(todayStr) &&
-          log.inputMethod != 'skip',
+          log.status == 'skipped',
     );
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import '../providers/analytics_provider.dart';
 import '../providers/habit_provider.dart';
 import '../providers/user_provider.dart';
@@ -82,6 +83,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildHeatmap(analyticsProvider),
+            const SizedBox(height: AppTheme.spacingL),
             _buildStatsOverview(analyticsProvider),
             const SizedBox(height: AppTheme.spacingL),
             _buildProgressChart(analyticsProvider),
@@ -89,6 +92,37 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             _buildHabitBreakdown(habitProvider, userProvider),
             const SizedBox(height: AppTheme.spacingL),
             _buildStreakLeaderboard(habitProvider),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeatmap(AnalyticsProvider provider) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Activity Map", style: AppTheme.titleMedium),
+            const SizedBox(height: 16),
+            HeatMap(
+              datasets: provider.heatmapData,
+              colorMode: ColorMode.opacity,
+              showText: false,
+              scrollable: true,
+              colorsets: {
+                1: Theme.of(context).colorScheme.primary,
+              },
+              onClick: (value) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Activity on ${value.day}/${value.month}: ${provider.heatmapData[value] ?? 0} habits'))
+                );
+              },
+            ),
           ],
         ),
       ),

@@ -5,6 +5,7 @@ class HabitLog {
   final String? note;
   final String inputMethod;
   final int? moodRating;
+  final String status;
 
   HabitLog({
     this.id,
@@ -13,6 +14,7 @@ class HabitLog {
     this.note,
     required this.inputMethod,
     this.moodRating,
+    this.status = 'completed',
   });
 
   Map<String, dynamic> toMap() => {
@@ -22,6 +24,7 @@ class HabitLog {
         'note': note,
         'input_method': inputMethod,
         'mood_rating': moodRating,
+        'status': status,
       };
 
   factory HabitLog.fromMap(Map<String, dynamic> map) => HabitLog(
@@ -31,6 +34,7 @@ class HabitLog {
         note: map['note'],
         inputMethod: map['input_method'],
         moodRating: map['mood_rating'],
+        status: map['status'] ?? 'completed',
       );
 
   HabitLog copyWith({
@@ -40,6 +44,7 @@ class HabitLog {
     String? note,
     String? inputMethod,
     int? moodRating,
+    String? status,
   }) =>
       HabitLog(
         id: id ?? this.id,
@@ -48,6 +53,7 @@ class HabitLog {
         note: note ?? this.note,
         inputMethod: inputMethod ?? this.inputMethod,
         moodRating: moodRating ?? this.moodRating,
+        status: status ?? this.status,
       );
 
   @override
