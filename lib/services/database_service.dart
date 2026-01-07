@@ -10,7 +10,7 @@ class DatabaseService {
   static Database? _database;
   static const String _databaseName = 'habit_tracker.db';
   static const int _databaseVersion =
-      5; // 🔔 UPDATED: Version 5 for flexible scheduling
+      6; // 🔔 UPDATED: Version 6 for habit-level reminders
 
   Future<Database> get database async {
     _database ??= await _initDB();
@@ -45,6 +45,8 @@ class DatabaseService {
         interval_minutes INTEGER,
         window_start_time TEXT,
         window_end_time TEXT,
+        is_reminder_enabled INTEGER DEFAULT 0,
+        reminder_time TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -173,6 +175,16 @@ class DatabaseService {
       );
       await db.execute(
         'ALTER TABLE habits ADD COLUMN window_end_time TEXT',
+      );
+    }
+    
+    if (oldVersion < 6) {
+      // 🔔 ADD: Reminder settings for habits
+      await db.execute(
+        'ALTER TABLE habits ADD COLUMN is_reminder_enabled INTEGER DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE habits ADD COLUMN reminder_time TEXT',
       );
     }
   }

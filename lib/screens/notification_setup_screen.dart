@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/notification_settings.dart';
-import '../models/habit.dart';
 import '../providers/user_provider.dart';
 import '../providers/habit_provider.dart';
 import '../services/notification_service.dart';
 import '../services/database_service.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
-import '../utils/constants.dart';
 import '../widgets/premium_dialog.dart';
 
 class NotificationSetupScreen extends StatefulWidget {

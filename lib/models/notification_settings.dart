@@ -139,12 +139,14 @@ class NotificationSettings {
   String get daysDisplayName {
     if (daysOfWeek.length == 7) return 'Every day';
     if (daysOfWeek.length == 5 &&
-        daysOfWeek.every((day) => day >= 1 && day <= 5))
+        daysOfWeek.every((day) => day >= 1 && day <= 5)) {
       return 'Weekdays';
+    }
     if (daysOfWeek.length == 2 &&
         daysOfWeek.contains(6) &&
-        daysOfWeek.contains(7))
+        daysOfWeek.contains(7)) {
       return 'Weekends';
+    }
 
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return daysOfWeek.map((day) => dayNames[day - 1]).join(', ');

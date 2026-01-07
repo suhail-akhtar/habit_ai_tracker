@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // 🔔 Needed for background handler type
+import 'package:timezone/data/latest.dart' as tz;
 import 'providers/habit_provider.dart';
 import 'providers/voice_provider.dart';
 import 'providers/analytics_provider.dart';
@@ -10,14 +12,26 @@ import 'screens/habit_setup_screen.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/notification_service.dart';
+// import 'services/database_service.dart'; // removed unused
+// import 'models/habit_log.dart'; // removed unused
 import 'utils/theme.dart';
 import 'config/app_config.dart';
 
+// 🔔 BACKGROUND HANDLER MOVED TO MAIN.DART
+@pragma('vm:entry-point')
+void notificationTapBackground(NotificationResponse notificationResponse) async {
+  // 🔧 CRITICAL: Initialize Flutter binding for background isolate
+  WidgetsFlutterBinding.ensureInitialized();
+  print('🔔 Background notification tap: ${notificationResponse.payload}');
+  // Action buttons have been removed. Taps are handled in DashboardScreen via payload stream.
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones(); // Ensure timezones needed for notifications
 
-  // Initialize services
-  await NotificationService().initialize();
+  // Initialize services with background handler
+  await NotificationService().initialize(notificationTapBackground);
 
   runApp(const AIVoiceHabitTrackerApp());
 }

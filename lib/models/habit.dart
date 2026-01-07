@@ -16,7 +16,11 @@ class Habit {
   final int? intervalMinutes;
   final String? windowStartTime; // "HH:MM"
   final String? windowEndTime; // "HH:MM"
-
+  
+  // 🔔 NEW: Reminder Settings integrated
+  final bool isReminderEnabled;
+  final String? reminderTime; // "HH:MM" for daily simple
+  
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -34,6 +38,8 @@ class Habit {
     this.intervalMinutes,
     this.windowStartTime,
     this.windowEndTime,
+    this.isReminderEnabled = false,
+    this.reminderTime,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -52,6 +58,8 @@ class Habit {
         'interval_minutes': intervalMinutes,
         'window_start_time': windowStartTime,
         'window_end_time': windowEndTime,
+        'is_reminder_enabled': isReminderEnabled ? 1 : 0,
+        'reminder_time': reminderTime,
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
@@ -70,6 +78,8 @@ class Habit {
         intervalMinutes: map['interval_minutes'],
         windowStartTime: map['window_start_time'],
         windowEndTime: map['window_end_time'],
+        isReminderEnabled: (map['is_reminder_enabled'] ?? 0) == 1,
+        reminderTime: map['reminder_time'],
         createdAt: DateTime.parse(map['created_at']),
         updatedAt: DateTime.parse(map['updated_at']),
       );
@@ -88,6 +98,8 @@ class Habit {
     int? intervalMinutes,
     String? windowStartTime,
     String? windowEndTime,
+    bool? isReminderEnabled,
+    String? reminderTime,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) =>
@@ -105,6 +117,8 @@ class Habit {
         intervalMinutes: intervalMinutes ?? this.intervalMinutes,
         windowStartTime: windowStartTime ?? this.windowStartTime,
         windowEndTime: windowEndTime ?? this.windowEndTime,
+        isReminderEnabled: isReminderEnabled ?? this.isReminderEnabled,
+        reminderTime: reminderTime ?? this.reminderTime,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );

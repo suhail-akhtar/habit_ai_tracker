@@ -1,5 +1,7 @@
+import 'dart:async'; // 🔔 Added for StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/habit.dart'; // 🔔 explicit import for Habit type
 import '../providers/habit_provider.dart';
 import '../providers/user_provider.dart';
 import '../widgets/habit_card.dart';
@@ -8,11 +10,162 @@ import '../widgets/premium_dialog.dart';
 import '../widgets/dashboard/bento_grid.dart'; // Import BentoGrid
 import '../utils/theme.dart';
 import '../utils/constants.dart';
+import '../services/notification_service.dart';
 import 'voice_input_screen.dart';
 import 'habit_setup_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
+  StreamSubscription<String?>? _notificationSubscription;
+  
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Initial load
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      context.read<HabitProvider>().loadHabits();
+      // 🔔 Request permissions after UI is ready to avoid startup hangs
+      await NotificationService().requestPermissions();
+      
+      // 🔔 Check for launch from notification
+      _checkInitialNotification();
+    });
+    
+    // 🔔 Listen for active notifications
+    _notificationSubscription = NotificationService().payloadStream.listen(_handleNotificationPayload);
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _checkInitialNotification() async {
+    final payload = await NotificationService().getInitialPayload();
+    if (payload != null) {
+      _handleNotificationPayload(payload);
+    }
+  }
+
+  void _handleNotificationPayload(String? payload) {
+    if (payload == null) return;
+    print("📢 Dashboard received payload: $payload");
+    
+    if (payload.startsWith('custom_notification:')) {
+      final parts = payload.split(':');
+      // expected: custom_notification:{habitId}:{habitId}
+      if (parts.length >= 2) {
+        // Try parsing the last part or the middle part, based on generation logic
+        // Generation: 'custom_notification:${habit.id}:${habit.id}'
+        // parts[0] = custom_notification
+        // parts[1] = id
+        // parts[2] = id
+        
+        final habitIdStr = parts.length >= 3 ? parts[2] : parts[1];
+        final habitId = int.tryParse(habitIdStr);
+        if (habitId != null) {
+          _showHabitActionDialog(habitId);
+        }
+      }
+    }
+  }
+
+  void _showHabitActionDialog(int habitId) {
+     // Wait for habits to load if empty?
+     final habitProvider = context.read<HabitProvider>();
+     // Simple check if habits are loaded
+     if (habitProvider.habits.isEmpty) {
+        // Retry shortly if data is loading
+        Future.delayed(const Duration(seconds: 1), () => _showHabitActionDialog(habitId));
+        return;
+     }
+
+     final habit = habitProvider.habits.cast<Habit?>().firstWhere(
+       (h) => h?.id == habitId, 
+       orElse: () => null
+     );
+     
+     if (habit == null) return;
+
+     showDialog(
+       context: context,
+       builder: (context) => AlertDialog(
+         title: Text('Did you do it?'),
+         content: Column(
+           mainAxisSize: MainAxisSize.min,
+           children: [
+             Text('Mark "${habit.name}" as complete?'),
+             if (habit.description != null && habit.description!.isNotEmpty)
+               Padding(
+                 padding: const EdgeInsets.only(top: 8.0),
+                 child: Text(habit.description!, style: Theme.of(context).textTheme.bodySmall),
+               ),
+           ],
+         ),
+         actions: [
+            // 🔔 NEW: Handle recurring habits skip logic
+            if (habit.targetFrequency > 1) ...[
+                TextButton(
+                  onPressed: () {
+                     // Skip just this session
+                     context.read<HabitProvider>().logHabitSkip(habitId, note: 'Skipped session via notification');
+                     Navigator.pop(context);
+                  },
+                  child: const Text('Skip Session'),
+                ),
+                TextButton(
+                  onPressed: () {
+                     // Skip remaining sessions? 
+                     // For now simple UI: Just skip one. Or we can loop and log skips to fill quota.
+                     // A simple way: Log a special note or just log enough skips?
+                     // Let's keep it simple: "Skip" means skip one instance. 
+                     // If they want to skip day, they can do it in app.
+                     context.read<HabitProvider>().logHabitSkip(habitId, note: 'Skipped via notification');
+                     Navigator.pop(context);
+                  },
+                  child: const Text('Skip'),
+                ),
+            ] else 
+              TextButton(
+                onPressed: () {
+                   context.read<HabitProvider>().logHabitSkip(habitId);
+                   Navigator.pop(context);
+                },
+                child: const Text('Skip'),
+              ),
+
+            FilledButton(
+               onPressed: () {
+                 context.read<HabitProvider>().logHabitCompletion(
+                    habitId, 
+                    inputMethod: 'notification'
+                 );
+                 Navigator.pop(context);
+               },
+               child: const Text('Yes, Complete!'),
+            ),
+         ],
+       ),
+     );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      print('📱 App resumed - refreshing data');
+      context.read<HabitProvider>().loadHabits();
+      context.read<UserProvider>().loadUserData();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/habit_provider.dart';
 import '../providers/user_provider.dart';
 import '../models/habit.dart';
+import '../services/notification_service.dart';
 import '../utils/theme.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
@@ -33,6 +34,10 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   int _intervalMinutes = 60;
   TimeOfDay _windowStartTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _windowEndTime = const TimeOfDay(hour: 21, minute: 0);
+
+  // 🔔 NEW: Notification State
+  bool _isReminderEnabled = false;
+  TimeOfDay _reminderTime = const TimeOfDay(hour: 9, minute: 0);
 
   bool _isLoading = false;
 
@@ -92,6 +97,13 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
       final split = habit.windowEndTime!.split(':');
       _windowEndTime = TimeOfDay(hour: int.parse(split[0]), minute: int.parse(split[1]));
     }
+
+    // 🔔 NEW: Load Notification Data
+    _isReminderEnabled = habit.isReminderEnabled;
+    if (habit.reminderTime != null) {
+      final split = habit.reminderTime!.split(':');
+      _reminderTime = TimeOfDay(hour: int.parse(split[0]), minute: int.parse(split[1]));
+    }
   }
 
   @override
@@ -143,6 +155,8 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                         _buildColorSelection(),
                         const SizedBox(height: AppTheme.spacingL),
                         _buildFrequencySelection(),
+                        const SizedBox(height: AppTheme.spacingL),
+                        _buildReminderSettings(),
                         const SizedBox(height: AppTheme.spacingXL),
                         _buildActionButtons(habitProvider, userProvider),
                       ],
@@ -504,7 +518,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(AppTheme.radiusM),
               ),
               child: Row(
@@ -774,6 +788,96 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     }
   }
 
+  Widget _buildReminderSettings() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Reminders', style: AppTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      _isReminderEnabled ? 'Enabled' : 'Disabled',
+                      style: AppTheme.bodySmall.copyWith(
+                        color: _isReminderEnabled ? Colors.green : Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                Switch(
+                  value: _isReminderEnabled,
+                  onChanged: (val) {
+                    setState(() {
+                      _isReminderEnabled = val;
+                    });
+                  },
+                ),
+              ],
+            ),
+            
+            if (_isReminderEnabled) ...[
+              const Divider(height: 30),
+              if (_frequencyType == 'daily') ...[
+                 Text('Reminder Time', style: AppTheme.bodyMedium),
+                 const SizedBox(height: AppTheme.spacingS),
+                 _buildTimePickerButton(
+                   time: _reminderTime, 
+                   label: 'Notify at', 
+                   onPick: (t) => setState(() => _reminderTime = t),
+                 ),
+                 const SizedBox(height: AppTheme.spacingS),
+                 Text(
+                   'You will receive a notification at this time every day.',
+                   style: AppTheme.bodySmall.copyWith(color: Colors.grey),
+                 ),
+              ] else ...[
+                 Row(
+                   children: [
+                     Icon(Icons.access_alarm, color: Theme.of(context).colorScheme.primary),
+                     const SizedBox(width: 12),
+                     Expanded(
+                       child: Text(
+                         'Notifications will be scheduled for every interval between ${_windowStartTime.format(context)} and ${_windowEndTime.format(context)}.',
+                         style: AppTheme.bodyMedium,
+                       ),
+                     ),
+                   ],
+                 ),
+                 const SizedBox(height: AppTheme.spacingS),
+                 Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                         const Icon(Icons.touch_app, size: 16, color: Colors.blue),
+                         const SizedBox(width: 8),
+                         Text(
+                           'Includes "Mark Done" action',
+                           style: TextStyle(fontSize: 12, color: Colors.blue[800]),
+                         ),
+                      ],
+                    ),
+                 ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActionButtons(
     HabitProvider habitProvider,
     UserProvider userProvider,
@@ -883,6 +987,12 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
             ? '${_windowEndTime.hour}:${_windowEndTime.minute.toString().padLeft(2, '0')}' 
             : null,
         
+        // 🔔 NEW: Save Notification Data
+        isReminderEnabled: _isReminderEnabled,
+        reminderTime: _isReminderEnabled && _frequencyType == 'daily'
+            ? '${_reminderTime.hour}:${_reminderTime.minute.toString().padLeft(2, '0')}'
+            : null,
+        
         createdAt: widget.habitToEdit?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -890,6 +1000,10 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
       if (widget.habitToEdit != null) {
         // Updating existing habit
         await habitProvider.updateHabit(habit);
+
+        // 🔔 Schedule Reminders
+        await NotificationService().scheduleHabitReminders(habit);
+
         if (mounted) {
           Helpers.showSnackBar(context, 'Habit updated successfully');
           Navigator.of(context).pop();
@@ -904,7 +1018,12 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
           // Update user provider habit count
           await userProvider.incrementHabitCount();
 
-          // 🔧 FIXED: Show success message and properly navigate back
+          // � Schedule Reminders (Get newly created habit with ID)
+          if (habitProvider.habits.isNotEmpty) {
+             await NotificationService().scheduleHabitReminders(habitProvider.habits.first);
+          }
+
+          // �🔧 FIXED: Show success message and properly navigate back
           Helpers.showSnackBar(context, 'Habit created successfully');
 
           // Ensure we navigate back to the previous screen (dashboard)

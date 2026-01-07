@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'dart:async'; // 🔔 Needed for StreamController
+
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -6,23 +8,38 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:permission_handler/permission_handler.dart';
 import '../models/habit.dart';
 import '../models/notification_settings.dart';
-import '../utils/constants.dart';
+
+// For vibration pattern
+// For background logging
+// For background logging
+
+// 🔔 MOVED: Background Notification Handler is now in main.dart
+// to ensure it is registered as a proper VM entry point.
+// See main.dart -> notificationTapBackground
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
+  
+  // 🔔 NEW: Stream for notification tap events
+  final StreamController<String?> _payloadController = StreamController<String?>.broadcast();
+  Stream<String?> get payloadStream => _payloadController.stream;
 
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   bool _isInitialized = false;
   bool _hasPermission = false;
+  
+  // 🔔 NEW: Store handler reference
+  void Function(NotificationResponse)? _backgroundHandler;
 
   bool get isInitialized => _isInitialized;
   bool get hasPermission => _hasPermission;
 
-  Future<void> initialize() async {
+  Future<void> initialize(void Function(NotificationResponse)? backgroundHandler) async {
+    _backgroundHandler = backgroundHandler; // Store it
     try {
       tz.initializeTimeZones();
 
@@ -45,10 +62,14 @@ class NotificationService {
       await _flutterLocalNotificationsPlugin.initialize(
         initializationSettings,
         onDidReceiveNotificationResponse: _onNotificationTapped,
+        onDidReceiveBackgroundNotificationResponse: backgroundHandler,
       );
 
       _isInitialized = true;
-      await requestPermissions();
+      // 🔧 FIX: Do NOT request permissions immediately on startup in main()
+      // This causes hangs/crashes on some devices if UI isn't ready.
+      // Permissions should be requested when needed or on dashboard load.
+      // await requestPermissions(); 
 
       print('✅ NotificationService initialized successfully');
     } catch (e) {
@@ -65,6 +86,15 @@ class NotificationService {
       if (await Permission.notification.isDenied) {
         final status = await Permission.notification.request();
         _hasPermission = status == PermissionStatus.granted;
+      }
+      
+      // 🔔 NEW: Request Exact Alarm permission (Android 12+)
+      // This is crucial for reliable scheduling
+      final androidImplementation = _flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+          
+      if (androidImplementation != null) {
+        await androidImplementation.requestExactAlarmsPermission();
       }
 
       print('✅ Notification permissions: $_hasPermission');
@@ -115,9 +145,8 @@ class NotificationService {
             _buildMessage(settings, associatedHabits),
             scheduledTime,
             notificationDetails,
-            androidScheduleMode: settings.type == NotificationType.alarm
-                ? AndroidScheduleMode.alarmClock
-                : AndroidScheduleMode.exactAllowWhileIdle,
+            // 🔔 FIX: Use exactAllowWhileIdle for everything to ensure it fires in Doze mode
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
 
             matchDateTimeComponents: _getMatchComponents(settings),
             payload:
@@ -162,8 +191,8 @@ class NotificationService {
           'ringing_reminders',
           'Ringing Reminders',
           channelDescription: 'Persistent ringing habit reminders',
-          importance: Importance.high,
-          priority: Priority.high,
+          importance: Importance.max, // 🔔 Upgraded to max
+          priority: Priority.max, // 🔔 Upgraded to max
           showWhen: true,
           enableVibration: true,
           playSound: true,
@@ -172,6 +201,8 @@ class NotificationService {
           ongoing: true, // Makes it persistent like a call
           autoCancel: false, // User must manually dismiss
           timeoutAfter: 30000, // Auto-dismiss after 30 seconds
+          additionalFlags: Int32List.fromList([4]), // 🔔 Flag 4 = FLAG_INSISTENT (Loop sound)
+          audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
         );
         break;
       case NotificationType.alarm:
@@ -198,18 +229,10 @@ class NotificationService {
           category: AndroidNotificationCategory.alarm,
           ongoing: true, // Persistent
           autoCancel: false, // Must be manually dismissed
-          actions: <AndroidNotificationAction>[
-            AndroidNotificationAction(
-              'dismiss',
-              'Dismiss',
-              showsUserInterface: true,
-            ),
-            AndroidNotificationAction(
-              'snooze',
-              'Snooze 5min',
-              showsUserInterface: false,
-            ),
-          ],
+          additionalFlags: Int32List.fromList([4]), // 🔔 Flag 4 = FLAG_INSISTENT (Loop sound)
+          audioAttributesUsage: AudioAttributesUsage.alarm,
+          // 🔔 REMOVED: Custom Actions (Buttons) removed as per user request
+          // Tapping the notification body will trigger the App Open + Dialog flow.
         );
         break;
     }
@@ -347,7 +370,8 @@ class NotificationService {
   Future<void> cancelNotification(int notificationId) async {
     try {
       // Cancel all instances of this notification (base ID + variants)
-      for (int i = 0; i < 10; i++) {
+      // Increased range to 100 to cover frequent intervals (e.g. 15 mins over 24h = ~96)
+      for (int i = 0; i < 100; i++) {
         await _flutterLocalNotificationsPlugin.cancel(
           notificationId * 1000 + i,
         );
@@ -365,6 +389,127 @@ class NotificationService {
     } catch (e) {
       print('❌ Failed to cancel all notifications: $e');
     }
+  }
+
+  // 🔔 NEW: Auto-scheduling for new habit system
+  Future<void> scheduleHabitReminders(Habit habit) async {
+    // 0. Clean up old reminders for this habit
+    await cancelNotification(habit.id!);
+
+    if (!habit.isReminderEnabled) return;
+
+    // 1. Determine Timings
+    final List<TimeOfDay> times = [];
+
+    if (habit.frequencyType == 'interval') {
+      // ⌚ Interval Mode
+      if (habit.windowStartTime != null && 
+          habit.windowEndTime != null && 
+          habit.intervalMinutes != null) {
+          
+        final startParts = habit.windowStartTime!.split(':');
+        final endParts = habit.windowEndTime!.split(':');
+        
+        int startMins = int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
+        int endMins = int.parse(endParts[0]) * 60 + int.parse(endParts[1]);
+        
+         // Handle overnight schedules
+        if (endMins <= startMins) endMins += 24 * 60;
+        
+        int currentMins = startMins;
+        
+        while (currentMins < endMins) {
+           final hour = (currentMins ~/ 60) % 24;
+           final minute = currentMins % 60;
+           times.add(TimeOfDay(hour: hour, minute: minute));
+           
+           currentMins += habit.intervalMinutes!;
+        }
+      }
+    } else {
+      // 📅 Daily Mode
+      if (habit.reminderTime != null) {
+        final parts = habit.reminderTime!.split(':');
+        times.add(TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])));
+      }
+    }
+
+    // 2. Schedule Notifications
+    for (int i = 0; i < times.length; i++) {
+       final time = times[i];
+       // Base ID + index (up to 100 slots per habit to be safe, though 10 is current cancel limit)
+       // Let's increment cancel limit or valid range
+       final notificationId = habit.id! * 1000 + i;
+       
+       final settings = NotificationSettings(
+          id: habit.id, // Group ID
+          title: '${habit.name} Reminder',
+          message: habit.frequencyType == 'interval' 
+              ? 'Time for your scheduled habit!' 
+              : 'Don\'t forget your goal today!',
+          time: time,
+          habitIds: [habit.id!],
+          repetition: RepetitionType.daily,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          isEnabled: true,
+          type: NotificationType.simple,
+       );
+       
+       // Manually schedule using zonedSchedule like generic method but with specific ID
+       // We can reuse scheduleNotification if we tweak it to accept specific ID override
+       // Or simpler: Just replicate the single schedule logic here for robustness
+       
+       // 🔔 IMPORTANT: Persist settings to internal DB so "System" knows about it
+       // Although for now we just schedule directly to ensure immediate functionality
+       
+       await _scheduleSingleNotification(notificationId, settings, habit);
+    }
+    
+    print('✅ Scheduled ${times.length} reminders for habit ${habit.id}');
+  }
+
+  Future<void> _scheduleSingleNotification(
+      int notificationId, NotificationSettings settings, Habit habit) async {
+      
+    final now = DateTime.now();
+    var scheduledDate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      settings.time.hour,
+      settings.time.minute,
+    );
+
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+    
+    // Android Details with Actions
+    const androidDetails = AndroidNotificationDetails(
+          'simple_reminders',
+          'Simple Reminders',
+          channelDescription: 'Simple habit reminder notifications',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          showWhen: true,
+          enableVibration: true,
+          playSound: true,
+    );
+        
+    const iOSDetails = DarwinNotificationDetails();
+    const details = NotificationDetails(android: androidDetails, iOS: iOSDetails);
+    
+    await _flutterLocalNotificationsPlugin.zonedSchedule(
+        notificationId,
+        settings.title,
+        settings.message,
+        tz.TZDateTime.from(scheduledDate, tz.local),
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time, // Daily
+        payload: 'custom_notification:${habit.id}:${habit.id}',
+    );
   }
 
   // 🔔 LEGACY SUPPORT: Keep existing methods for compatibility
@@ -448,8 +593,14 @@ class NotificationService {
   }
 
   void _onNotificationTapped(NotificationResponse notificationResponse) {
+    // 🔔 UPDATED: Handle foreground/background actions when app is running
+    notifyAction(notificationResponse);
+    
     final payload = notificationResponse.payload;
     print('🔔 Notification tapped with payload: $payload');
+    
+    // 🔔 Notify listeners (UI) about the tap
+    _payloadController.add(payload);
 
     if (payload != null) {
       if (payload.startsWith('custom_notification:')) {
@@ -466,6 +617,22 @@ class NotificationService {
         print('📱 Opening achievement notification');
       }
     }
+  }
+
+  // 🔔 NEW: Check if app was launched by notification
+  Future<String?> getInitialPayload() async {
+    final details = await _flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+    if (details != null && details.didNotificationLaunchApp) {
+      return details.notificationResponse?.payload;
+    }
+    return null;
+  }
+  
+  // Reuse background logic for foreground for simplicity
+  void notifyAction(NotificationResponse response) {
+     if (_backgroundHandler != null) {
+       _backgroundHandler!(response);
+     }
   }
 
   String formatTime(TimeOfDay time) {

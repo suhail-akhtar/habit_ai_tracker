@@ -308,12 +308,28 @@ class HabitProvider with ChangeNotifier {
       orElse: () => throw Exception('Habit not found'),
     );
     
-    // If skipped, it counts as "completed" for UI purposes (streak maintained)
-    // or we might want a distinct "skipped" state.
-    // For now, let's keep boolean simple, but use count for details.
-    if (isHabitSkippedToday(habitId)) return true;
-
-    return count >= habit.targetFrequency;
+    // 🔔 CHANGED: Skips now count as "attempts" or "slots used", 
+    // but don't automatically mark the WHOLE day as finished unless target met.
+    // If you skip once in a 5x habit, you have 4x left.
+    // Logic: (Completions + Skips) >= Target
+    
+    final skips = getSkipCountToday(habitId);
+    
+    // Special case: If user explicitly marked "Day Skipped" (future feature), 
+    // we could handle it here. For now, we trust the count.
+    
+    return (count + skips) >= habit.targetFrequency;
+  }
+  
+  // 🔔 NEW: Helper to count skips
+  int getSkipCountToday(int habitId) {
+     final today = DateTime.now();
+     final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+     return _todayLogs.where((log) => 
+        log.habitId == habitId && 
+        log.completedAt.toIso8601String().startsWith(todayStr) && 
+        log.status == 'skipped'
+     ).length;
   }
 
   int getCompletionCountToday(int habitId) {
