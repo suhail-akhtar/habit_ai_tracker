@@ -7,7 +7,6 @@ import '../services/notification_service.dart';
 import '../services/database_service.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
-import '../widgets/premium_dialog.dart';
 
 class NotificationSetupScreen extends StatefulWidget {
   final NotificationSettings? notification;
@@ -250,30 +249,9 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text('Notification Type', style: AppTheme.titleMedium),
-                if (!userProvider.isPremium &&
-                    (_selectedType == NotificationType.ringing ||
-                        _selectedType == NotificationType.alarm))
-                  const Spacer(),
-                if (!userProvider.isPremium &&
-                    (_selectedType == NotificationType.ringing ||
-                        _selectedType == NotificationType.alarm))
-                  TextButton(
-                    onPressed: () => showPremiumDialog(
-                      context,
-                      feature: 'Advanced notification types',
-                    ),
-                    child: const Text('Premium'),
-                  ),
-              ],
-            ),
+            Text('Notification Type', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             ...NotificationType.values.map((type) {
-              final isPremiumType = type != NotificationType.simple;
-              final isDisabled = isPremiumType && !userProvider.isPremium;
-
               return RadioListTile<NotificationType>(
                 title: Row(
                   children: [
@@ -283,10 +261,6 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
                     ),
                     const SizedBox(width: AppTheme.spacingS),
                     Text(type.name.toUpperCase()),
-                    if (isPremiumType && !userProvider.isPremium) ...[
-                      const SizedBox(width: AppTheme.spacingS),
-                      Icon(Icons.star, size: 16, color: AppTheme.warningColor),
-                    ],
                   ],
                 ),
                 subtitle: Text(_getTypeDescription(type)),
@@ -294,13 +268,11 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
                 // ignore: deprecated_member_use
                 groupValue: _selectedType,
                 // ignore: deprecated_member_use
-                onChanged: isDisabled
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          setState(() => _selectedType = value);
-                        }
-                      },
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedType = value);
+                  }
+                },
               );
             }),
           ],

@@ -1,19 +1,8 @@
 class AppConfig {
-  static const String appName = 'AI Voice Habit Tracker';
+    static const String appName = 'Habit Tracker';
   static const String appVersion = '1.0.0';
 
-  // 🔧 FIXED: Gemini API Configuration for gemini-2.5-flash
-  static const String geminiApiKey = 'AIzaSyCYEdW8B5WhT15w6Xb8pSOeXhtJwiQJBoc';
-  static const String geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models';
-  static const String geminiModel =
-      'gemini-2.5-flash'; // ✅ Your accessible model
-
-  // API endpoint construction
-  static String get geminiEndpoint =>
-      '$geminiBaseUrl/$geminiModel:generateContent';
-
-  //Debugging
+    // Debugging
 
   static const bool enableApiDebugging = false;
   static Duration apiTimeout = Duration(seconds: 30);
@@ -22,25 +11,9 @@ class AppConfig {
   static const String databaseName = 'habit_tracker.db';
   static const int databaseVersion = 1;
 
-  // Feature Flags
-  static const bool enableAnalytics = true;
-  static const bool enablePremiumFeatures = true;
-  static const bool enableVoiceRecognition = true;
-  static const bool enableNotifications = true;
-
-  // Premium Configuration
-  static const int freeHabitLimit = 5;
-  static const String premiumProductId = 'ai_habit_tracker_premium';
-
-  // Voice Recognition Configuration
-  static const Duration voiceListenDuration = Duration(seconds: 10);
-  static const Duration voicePauseDuration = Duration(seconds: 3);
-  static const String defaultVoiceLanguage = 'en_US';
-
-  // AI Configuration
-  static const double aiConfidenceThreshold = 0.6;
-  static const int aiInsightCacheDuration = 24; // hours
-  static const int maxAiRetries = 3;
+    // Feature Flags
+    static const bool enableAnalytics = true;
+    static const bool enableNotifications = true;
 
   // UI Configuration
   static const Duration animationDuration = Duration(milliseconds: 300);

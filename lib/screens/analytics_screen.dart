@@ -3,11 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import '../providers/analytics_provider.dart';
 import '../providers/habit_provider.dart';
-import '../providers/user_provider.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
 import '../widgets/progress_chart.dart';
-import '../widgets/premium_dialog.dart';
 import '../models/habit.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -46,25 +44,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           ],
         ),
       ),
-      body: Consumer3<AnalyticsProvider, HabitProvider, UserProvider>(
-        builder:
-            (context, analyticsProvider, habitProvider, userProvider, child) {
-              if (analyticsProvider.isLoading) {
-                return const Center(child: CircularProgressIndicator());
-              }
+      body: Consumer2<AnalyticsProvider, HabitProvider>(
+        builder: (context, analyticsProvider, habitProvider, child) {
+          if (analyticsProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-              return TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildOverviewTab(
-                    analyticsProvider,
-                    habitProvider,
-                    userProvider,
-                  ),
-                  _buildInsightsTab(analyticsProvider, userProvider),
-                ],
-              );
-            },
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildOverviewTab(analyticsProvider, habitProvider),
+              _buildInsightsTab(analyticsProvider),
+            ],
+          );
+        },
       ),
     );
   }
@@ -72,7 +65,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget _buildOverviewTab(
     AnalyticsProvider analyticsProvider,
     HabitProvider habitProvider,
-    UserProvider userProvider,
   ) {
     return RefreshIndicator(
       onRefresh: () async {
@@ -89,7 +81,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             const SizedBox(height: AppTheme.spacingL),
             _buildProgressChart(analyticsProvider),
             const SizedBox(height: AppTheme.spacingL),
-            _buildHabitBreakdown(habitProvider, userProvider),
+            _buildHabitBreakdown(habitProvider),
             const SizedBox(height: AppTheme.spacingL),
             _buildStreakLeaderboard(habitProvider),
           ],
@@ -133,7 +125,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Widget _buildInsightsTab(
     AnalyticsProvider analyticsProvider,
-    UserProvider userProvider,
   ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -142,11 +133,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         children: [
           _buildWeeklyInsight(analyticsProvider),
           const SizedBox(height: AppTheme.spacingL),
-          _buildAIRecommendations(analyticsProvider, userProvider),
+          _buildDailyTip(analyticsProvider),
           const SizedBox(height: AppTheme.spacingL),
-          _buildPatternAnalysis(analyticsProvider, userProvider),
+          _buildSuggestions(),
           const SizedBox(height: AppTheme.spacingL),
-          _buildGoalSuggestions(analyticsProvider, userProvider),
+          _buildPatternAnalysis(),
+          const SizedBox(height: AppTheme.spacingL),
+          _buildGoalSuggestions(),
         ],
       ),
     );
@@ -261,7 +254,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Widget _buildHabitBreakdown(
     HabitProvider habitProvider,
-    UserProvider userProvider,
   ) {
     return Card(
       child: Padding(
@@ -269,59 +261,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Habit Breakdown', style: AppTheme.titleMedium),
-                // 🔧 ENHANCED: Strict premium check
-                if (!userProvider.canAccessPremiumFeature('detailed_breakdown'))
-                  TextButton(
-                    onPressed: () => showPremiumDialog(
-                      context,
-                      feature: 'Detailed habit breakdown',
-                    ),
-                    child: const Text('Premium'),
-                  ),
-              ],
-            ),
+            Text('Habit Breakdown', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
-            // 🔧 ENHANCED: More robust premium gating
-            if (userProvider.canAccessPremiumFeature('detailed_breakdown')) ...[
-              // Premium detailed breakdown
-              ...habitProvider.habits
-                  .take(5)
-                  .map(
-                    (habit) => _buildHabitProgressItem(habit, habitProvider),
-                  ),
-            ] else ...[
-              // Free tier limited view
-              Container(
-                padding: const EdgeInsets.all(AppTheme.spacingM),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outline.withAlpha(26),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.lock,
-                      size: 48,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    const SizedBox(height: AppTheme.spacingS),
-                    Text(
-                      'Detailed breakdown available in Premium',
-                      style: AppTheme.bodyMedium.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withAlpha(179),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ...habitProvider.habits
+                .take(5)
+                .map((habit) => _buildHabitProgressItem(habit, habitProvider)),
           ],
         ),
       ),
@@ -463,7 +407,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               child: Row(
                 children: [
                   Icon(
-                    Icons.psychology,
+                    Icons.lightbulb_outline,
                     color: Theme.of(context).colorScheme.primary,
                     size: 24,
                   ),
@@ -485,69 +429,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
-  Widget _buildAIRecommendations(
-    AnalyticsProvider analyticsProvider,
-    UserProvider userProvider,
-  ) {
-    // 🔧 ENHANCED: Strict premium check
-    if (!userProvider.canAccessPremiumFeature('ai_recommendations')) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacingM),
-          child: Column(
-            children: [
-              Icon(
-                Icons.stars,
-                size: 48,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-              const SizedBox(height: AppTheme.spacingS),
-              Text('AI Recommendations', style: AppTheme.titleMedium),
-              const SizedBox(height: AppTheme.spacingS),
-              Text(
-                'Get personalized recommendations based on your habit patterns',
-                style: AppTheme.bodyMedium.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppTheme.spacingM),
-              ElevatedButton(
-                onPressed: () =>
-                    showPremiumDialog(context, feature: 'AI Recommendations'),
-                child: const Text('Upgrade to Premium'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
+  Widget _buildDailyTip(AnalyticsProvider analyticsProvider) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('AI Recommendations', style: AppTheme.titleMedium),
+            Text('Daily Tip', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
-            _buildRecommendationItem(
-              'Try morning habits',
-              'Your completion rate is higher in the morning',
-              Icons.wb_sunny,
-              AppTheme.warningColor,
-            ),
-            _buildRecommendationItem(
-              'Link habits together',
-              'Consider habit stacking for better consistency',
-              Icons.link,
-              AppTheme.infoColor,
-            ),
-            _buildRecommendationItem(
-              'Focus on streaks',
-              'Aim for 7-day streaks to build momentum',
-              Icons.local_fire_department,
-              AppTheme.successColor,
+            FutureBuilder<String>(
+              future: analyticsProvider.getDailyTip(),
+              builder: (context, snapshot) {
+                final tip = snapshot.data ?? 'Loading tip...';
+                return Text(tip, style: AppTheme.bodyMedium);
+              },
             ),
           ],
         ),
@@ -555,10 +451,40 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
-  Widget _buildPatternAnalysis(
-    AnalyticsProvider analyticsProvider,
-    UserProvider userProvider,
-  ) {
+  Widget _buildSuggestions() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Suggestions', style: AppTheme.titleMedium),
+            const SizedBox(height: AppTheme.spacingM),
+            _buildRecommendationItem(
+              'Start small',
+              'Consistency beats intensity — keep it easy to repeat.',
+              Icons.check_circle_outline,
+              AppTheme.successColor,
+            ),
+            _buildRecommendationItem(
+              'Stack habits',
+              'Attach a new habit to an existing routine.',
+              Icons.link,
+              AppTheme.infoColor,
+            ),
+            _buildRecommendationItem(
+              'Protect your streak',
+              'If you miss a day, restart immediately.',
+              Icons.local_fire_department,
+              AppTheme.warningColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPatternAnalysis() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -567,64 +493,31 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           children: [
             Text('Pattern Analysis', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
-            // 🔧 ENHANCED: Strict premium check
-            if (userProvider.canAccessPremiumFeature('pattern_analysis')) ...[
-              _buildPatternItem(
-                'Best Day',
-                'Monday',
-                Icons.calendar_today,
-                AppTheme.successColor,
-              ),
-              _buildPatternItem(
-                'Best Time',
-                '8:00 AM',
-                Icons.access_time,
-                AppTheme.infoColor,
-              ),
-              _buildPatternItem(
-                'Consistency',
-                '78%',
-                Icons.trending_up,
-                AppTheme.warningColor,
-              ),
-            ] else ...[
-              Container(
-                padding: const EdgeInsets.all(AppTheme.spacingM),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outline.withAlpha(26),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.lock,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    const SizedBox(width: AppTheme.spacingM),
-                    Expanded(
-                      child: Text(
-                        'Detailed pattern analysis available in Premium',
-                        style: AppTheme.bodyMedium.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withAlpha(179),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            _buildPatternItem(
+              'Best Day',
+              'Mon',
+              Icons.calendar_today,
+              AppTheme.successColor,
+            ),
+            _buildPatternItem(
+              'Best Time',
+              'Morning',
+              Icons.access_time,
+              AppTheme.infoColor,
+            ),
+            _buildPatternItem(
+              'Focus',
+              'Consistency',
+              Icons.trending_up,
+              AppTheme.warningColor,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildGoalSuggestions(
-    AnalyticsProvider analyticsProvider,
-    UserProvider userProvider,
-  ) {
+  Widget _buildGoalSuggestions() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),

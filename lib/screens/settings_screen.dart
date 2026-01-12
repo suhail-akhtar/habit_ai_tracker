@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
-import '../providers/voice_provider.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../models/notification_settings.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
 import '../utils/app_log.dart';
-import '../widgets/premium_dialog.dart';
 import '../screens/notification_setup_screen.dart';
 import '../config/app_config.dart';
 
@@ -45,8 +43,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: Consumer2<UserProvider, VoiceProvider>(
-        builder: (context, userProvider, voiceProvider, child) {
+      body: Consumer<UserProvider>(
+        builder: (context, userProvider, child) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppTheme.spacingM),
             child: Column(
@@ -57,8 +55,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildNotificationSection(context, userProvider), // 🔔 NEW
                 const SizedBox(height: AppTheme.spacingL),
                 _buildAppearanceSection(context, userProvider),
-                const SizedBox(height: AppTheme.spacingL),
-                _buildVoiceSection(context, userProvider, voiceProvider),
                 const SizedBox(height: AppTheme.spacingL),
                 _buildDataSection(context, userProvider),
                 const SizedBox(height: AppTheme.spacingL),
@@ -89,30 +85,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               title: Text(
-                userProvider.isPremium ? 'Premium User' : 'Free User',
+                'User',
                 style: AppTheme.titleMedium,
               ),
               subtitle: Text(
-                userProvider.isPremium
-                    ? 'All features unlocked'
-                    : '${userProvider.remainingFreeHabits} habits remaining',
+                'All features are free',
               ),
-              trailing: userProvider.isPremium
-                  ? Icon(Icons.star, color: AppTheme.warningColor)
-                  : TextButton(
-                      onPressed: () => showPremiumDialog(context),
-                      child: const Text('Upgrade'),
-                    ),
             ),
-            if (userProvider.isPremium) ...[
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.cancel),
-                title: const Text('Manage Subscription'),
-                subtitle: const Text('Cancel or modify your subscription'),
-                onTap: () => _showSubscriptionDialog(context, userProvider),
-              ),
-            ],
           ],
         ),
       ),
@@ -124,9 +103,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     BuildContext context,
     UserProvider userProvider,
   ) {
-    final notificationLimit = userProvider.isPremium ? 20 : 3;
     final currentCount = _notifications.length;
-    final canAddMore = currentCount < notificationLimit;
+    const canAddMore = true;
 
     return Card(
       child: Padding(
@@ -147,11 +125,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: AppTheme.spacingS),
             Text(
-              'Reminders: $currentCount/$notificationLimit',
+              'Reminders: $currentCount',
               style: AppTheme.bodySmall.copyWith(
-                color: currentCount >= notificationLimit
-                    ? AppTheme.errorColor
-                    : Theme.of(context).colorScheme.primary,
+                color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -167,44 +143,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _buildNotificationItem(notification, userProvider),
               ),
 
-            if (!canAddMore && !userProvider.isPremium) ...[
-              const SizedBox(height: AppTheme.spacingM),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppTheme.spacingS),
-                decoration: BoxDecoration(
-                  color: AppTheme.warningColor.withAlpha(26),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusS),
-                  border: Border.all(
-                    color: AppTheme.warningColor.withAlpha(77),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info, color: AppTheme.warningColor, size: 16),
-                    const SizedBox(width: AppTheme.spacingS),
-                    Expanded(
-                      child: Text(
-                        'Upgrade to Premium for up to 20 notifications',
-                        style: AppTheme.bodySmall.copyWith(
-                          color: AppTheme.warningColor,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => showPremiumDialog(
-                        context,
-                        feature: 'More notifications (up to 20)',
-                      ),
-                      child: Text(
-                        'Upgrade',
-                        style: TextStyle(color: AppTheme.warningColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -325,11 +263,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _addNotification(UserProvider userProvider) async {
-    if (!userProvider.isPremium && _notifications.length >= 3) {
-      showPremiumDialog(context, feature: 'More than 3 notifications');
-      return;
-    }
-
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const NotificationSetupScreen()),
@@ -409,76 +342,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               onTap: () => _showThemeDialog(context, userProvider),
             ),
-            if (userProvider.isPremium) ...[
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.color_lens),
-                title: const Text('Custom Colors'),
-                subtitle: const Text('Personalize your app colors'),
-                onTap: () => _showCustomColorsDialog(context),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVoiceSection(
-    BuildContext context,
-    UserProvider userProvider,
-    VoiceProvider voiceProvider,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacingM),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Voice & AI', style: AppTheme.titleMedium),
-            const SizedBox(height: AppTheme.spacingM),
-            ListTile(
-              leading: const Icon(Icons.mic),
-              title: const Text('Voice Recognition'),
-              subtitle: Text(
-                voiceProvider.isInitialized ? 'Enabled' : 'Disabled',
-              ),
-              trailing: Switch(
-                value: voiceProvider.isInitialized,
-                onChanged: (value) async {
-                  if (value) {
-                    await voiceProvider.initialize();
-                  }
-                },
-              ),
-            ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.language),
-              title: const Text('Voice Language'),
-              subtitle: Text(
-                userProvider.getSetting(
-                  'voice_language',
-                  defaultValue: 'English (US)',
-                ),
-              ),
-              onTap: () =>
-                  _showLanguageDialog(context, userProvider, voiceProvider),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.psychology),
-              title: const Text('AI Features'),
-              subtitle: const Text('Manage AI-powered insights'),
-              trailing: Switch(
-                value: userProvider.getBoolSetting(
-                  'ai_enabled',
-                  defaultValue: true,
-                ),
-                onChanged: (value) {
-                  userProvider.updateSetting('ai_enabled', value.toString());
-                },
-              ),
+              leading: const Icon(Icons.color_lens),
+              title: const Text('Custom Colors'),
+              subtitle: const Text('Personalize your app colors'),
+              onTap: () => _showCustomColorsDialog(context),
             ),
           ],
         ),
@@ -517,30 +386,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: const Icon(Icons.backup),
               title: const Text('Backup Data'),
               subtitle: const Text('Save your habits to the cloud'),
-              trailing: userProvider.isPremium
-                  ? const Icon(Icons.cloud_done, color: AppTheme.successColor)
-                  : TextButton(
-                      onPressed: () =>
-                          showPremiumDialog(context, feature: 'Data backup'),
-                      child: const Text('Premium'),
-                    ),
-              onTap: userProvider.isPremium
-                  ? () => _showBackupDialog(context)
-                  : null,
+              trailing: const Icon(Icons.cloud_done, color: AppTheme.successColor),
+              onTap: () => _showBackupDialog(context),
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.download),
               title: const Text('Export Data'),
               subtitle: const Text('Download your data as CSV'),
-              trailing: userProvider.isPremium
-                  ? const Icon(Icons.arrow_forward_ios, size: 16)
-                  : TextButton(
-                      onPressed: () =>
-                          showPremiumDialog(context, feature: 'Data export'),
-                      child: const Text('Premium'),
-                    ),
-              onTap: userProvider.isPremium ? () => _exportData(context) : null,
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => _exportData(context),
             ),
             const Divider(),
             ListTile(
@@ -665,81 +520,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showLanguageDialog(
-    BuildContext context,
-    UserProvider userProvider,
-    VoiceProvider voiceProvider,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Voice Language'),
-        content: FutureBuilder<List<String>>(
-          future: voiceProvider.getAvailableLanguages(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final languages = snapshot.data ?? ['en_US'];
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: languages
-                  .map(
-                    (language) => RadioListTile<String>(
-                      title: Text(_getLanguageDisplayName(language)),
-                      value: language,
-                      // ignore: deprecated_member_use
-                      groupValue: userProvider.getSetting('voice_language'),
-                      // ignore: deprecated_member_use
-                      onChanged: (value) {
-                        userProvider.updateSetting('voice_language', value!);
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                  )
-                  .toList(),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  String _getLanguageDisplayName(String languageCode) {
-    final languageMap = {
-      'en_US': 'English (US)',
-      'en_GB': 'English (UK)',
-      'es_ES': 'Spanish',
-      'fr_FR': 'French',
-      'de_DE': 'German',
-      'it_IT': 'Italian',
-      'ja_JP': 'Japanese',
-      'ko_KR': 'Korean',
-      'zh_CN': 'Chinese (Simplified)',
-    };
-    return languageMap[languageCode] ?? languageCode;
-  }
-
-  void _showSubscriptionDialog(
-    BuildContext context,
-    UserProvider userProvider,
-  ) {
-    Helpers.showConfirmDialog(
-      context,
-      title: 'Cancel Subscription',
-      content:
-          'Are you sure you want to cancel your premium subscription? You will lose access to premium features.',
-      onConfirm: () async {
-        await userProvider.cancelSubscription();
-        if (context.mounted) {
-          Helpers.showSnackBar(context, 'Subscription cancelled successfully');
-        }
-      },
-      confirmText: 'Cancel Subscription',
-    );
-  }
-
   void _showCustomColorsDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -809,10 +589,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Text('Need help? Here are some resources:'),
             SizedBox(height: 16),
-            Text('• Voice commands: Say "I completed [habit name]"'),
-            Text('• Tap the microphone to start voice input'),
-            Text('• Create up to 3 habits on the free plan'),
-            Text('• Upgrade to Premium for unlimited habits'),
+            Text('• Create a habit from the Add Habit tab'),
+            Text('• Enable reminders in Settings → Notifications'),
+            Text('• Tap a habit to mark it complete'),
             SizedBox(height: 16),
             Text('For more help, contact us at support@habittracker.com'),
           ],

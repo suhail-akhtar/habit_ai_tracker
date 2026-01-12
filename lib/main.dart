@@ -8,11 +8,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart'; /
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'providers/habit_provider.dart';
-import 'providers/voice_provider.dart';
 import 'providers/analytics_provider.dart';
 import 'providers/user_provider.dart';
 import 'screens/dashboard_screen.dart';
-import 'screens/voice_input_screen.dart';
 import 'screens/habit_setup_screen.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/settings_screen.dart';
@@ -211,7 +209,6 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => HabitProvider()),
-        ChangeNotifierProvider(create: (_) => VoiceProvider()),
         ChangeNotifierProvider(create: (_) => AnalyticsProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
@@ -225,7 +222,6 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
             home: const MainNavigationScreen(),
             routes: {
               '/dashboard': (context) => const DashboardScreen(),
-              '/voice': (context) => const VoiceInputScreen(),
               '/habit-setup': (context) => const HabitSetupScreen(),
               '/analytics': (context) => const AnalyticsScreen(),
               '/settings': (context) => const SettingsScreen(),
@@ -289,7 +285,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   final List<Widget> _screens = const [
     DashboardScreen(),
-    VoiceInputScreen(),
     HabitSetupScreen(),
     AnalyticsScreen(),
     SettingsScreen(),
@@ -483,7 +478,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       // 🔧 ENHANCED: Better initialization order for premium validation
       final userProvider = context.read<UserProvider>();
       final habitProvider = context.read<HabitProvider>();
-      final voiceProvider = context.read<VoiceProvider>();
       final analyticsProvider = context.read<AnalyticsProvider>();
 
       // Load user data first to get premium status
@@ -494,7 +488,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       await userProvider.updateHabitCount(habitProvider.habitCount);
 
       // Initialize other providers
-      await voiceProvider.initialize();
       await analyticsProvider.loadAnalytics();
     } catch (e) {
       AppLog.e('App initialization error', e);
@@ -518,11 +511,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.mic_outlined),
-            selectedIcon: Icon(Icons.mic),
-            label: 'Voice',
           ),
           NavigationDestination(
             icon: Icon(Icons.add_outlined),

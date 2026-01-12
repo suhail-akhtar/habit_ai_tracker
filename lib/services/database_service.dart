@@ -2,7 +2,6 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/habit.dart';
 import '../models/habit_log.dart';
-import '../models/ai_insight.dart';
 import '../models/user_settings.dart';
 import '../models/notification_settings.dart';
 
@@ -66,18 +65,6 @@ class DatabaseService {
     ''');
 
     await db.execute('''
-      CREATE TABLE ai_insights (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        insight_type TEXT NOT NULL,
-        content TEXT NOT NULL,
-        data_hash TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL
-      )
-    ''');
-
-    await db.execute('''
       CREATE TABLE user_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
@@ -110,12 +97,6 @@ class DatabaseService {
     );
     await db.execute(
       'CREATE INDEX idx_habit_logs_completed_at ON habit_logs(completed_at)',
-    );
-    await db.execute(
-      'CREATE INDEX idx_ai_insights_user_id ON ai_insights(user_id)',
-    );
-    await db.execute(
-      'CREATE INDEX idx_ai_insights_expires_at ON ai_insights(expires_at)',
     );
     await db.execute(
       'CREATE INDEX idx_notification_settings_enabled ON notification_settings(is_enabled)',
@@ -444,33 +425,6 @@ class DatabaseService {
       'SELECT COUNT(*) as count FROM notification_settings${enabledOnly ? ' WHERE is_enabled = 1' : ''}',
     );
     return result.first['count'] as int;
-  }
-
-  // AI insights operations (existing - unchanged)
-  Future<int> saveAIInsight(AIInsight insight) async {
-    final db = await database;
-    return await db.insert('ai_insights', insight.toMap());
-  }
-
-  Future<AIInsight?> getAIInsight(String userId, String insightType) async {
-    final db = await database;
-    final result = await db.query(
-      'ai_insights',
-      where: 'user_id = ? AND insight_type = ? AND expires_at > ?',
-      whereArgs: [userId, insightType, DateTime.now().toIso8601String()],
-      orderBy: 'created_at DESC',
-      limit: 1,
-    );
-    return result.isNotEmpty ? AIInsight.fromMap(result.first) : null;
-  }
-
-  Future<int> deleteExpiredInsights() async {
-    final db = await database;
-    return await db.delete(
-      'ai_insights',
-      where: 'expires_at < ?',
-      whereArgs: [DateTime.now().toIso8601String()],
-    );
   }
 
   // User settings operations (existing - unchanged)

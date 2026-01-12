@@ -1,12 +1,9 @@
 import 'package:flutter/foundation.dart';
 import '../services/database_service.dart';
-import '../services/gemini_service.dart';
-import '../models/ai_insight.dart';
 import '../utils/app_log.dart';
 
 class AnalyticsProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
-  final GeminiService _geminiService = GeminiService();
 
   Map<String, dynamic> _analytics = {};
   Map<DateTime, int> _heatmapData = {};
@@ -36,31 +33,24 @@ class AnalyticsProvider with ChangeNotifier {
 
   Future<void> _loadWeeklyInsight() async {
     try {
-      // Check if we have a cached insight
-      final cachedInsight = await _databaseService.getAIInsight(
-        'user',
-        'weekly_summary',
-      );
+      // App is currently AI-free: provide a local, deterministic insight.
+      final totalCompletions = (_analytics['totalCompletions'] as int?) ?? 0;
+      final totalHabits = (_analytics['totalHabits'] as int?) ?? 0;
 
-      if (cachedInsight != null && !cachedInsight.isExpired) {
-        _weeklyInsight = cachedInsight.content;
+      if (totalHabits == 0) {
+        _weeklyInsight =
+            'Create your first habit to start building momentum this week.';
         return;
       }
 
-      // Generate new insight
-      _weeklyInsight = await _geminiService.generateWeeklyInsight(_analytics);
+      if (totalCompletions == 0) {
+        _weeklyInsight =
+            'A fresh start week. Try completing one habit today to get a streak going.';
+        return;
+      }
 
-      // Cache the insight
-      final insight = AIInsight(
-        userId: 'user',
-        insightType: 'weekly_summary',
-        content: _weeklyInsight!,
-        dataHash: _generateDataHash(_analytics),
-        createdAt: DateTime.now(),
-        expiresAt: DateTime.now().add(const Duration(days: 1)),
-      );
-
-      await _databaseService.saveAIInsight(insight);
+      _weeklyInsight =
+          'Nice work — you have $totalCompletions completions across $totalHabits habits. Keep it consistent and build on small wins.';
     } catch (e) {
       AppLog.e('Failed to load weekly insight', e);
       _weeklyInsight =
@@ -68,27 +58,10 @@ class AnalyticsProvider with ChangeNotifier {
     }
   }
 
-  String _generateDataHash(Map<String, dynamic> data) {
-    // Simple hash generation for caching
-    return data.toString().hashCode.toString();
-  }
-
   Future<void> refreshInsight() async {
     _setLoading(true);
     try {
-      _weeklyInsight = await _geminiService.generateWeeklyInsight(_analytics);
-
-      // Update cache
-      final insight = AIInsight(
-        userId: 'user',
-        insightType: 'weekly_summary',
-        content: _weeklyInsight!,
-        dataHash: _generateDataHash(_analytics),
-        createdAt: DateTime.now(),
-        expiresAt: DateTime.now().add(const Duration(days: 1)),
-      );
-
-      await _databaseService.saveAIInsight(insight);
+      await _loadWeeklyInsight();
       _clearError();
     } catch (e) {
       _setError('Failed to refresh insight: $e');
@@ -98,7 +71,15 @@ class AnalyticsProvider with ChangeNotifier {
   }
 
   Future<String> getDailyTip() async {
-    return await _geminiService.generateDailyTip();
+    const tips = <String>[
+      'Start small: aim for consistency, not intensity.',
+      'Attach your habit to an existing routine to make it stick.',
+      'If you miss a day, restart immediately — no guilt, just action.',
+      'Make it easy: reduce friction and prepare in advance.',
+      'Track progress daily; what gets measured gets improved.',
+    ];
+    final index = DateTime.now().day % tips.length;
+    return tips[index];
   }
 
   Map<String, dynamic> getHabitAnalytics(int habitId) {

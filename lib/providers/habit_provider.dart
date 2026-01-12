@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
+
 import '../models/habit.dart';
 import '../models/habit_log.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/widget_service.dart';
 import '../utils/app_log.dart';
-import '../utils/constants.dart';
 
 class HabitProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -92,31 +92,6 @@ class HabitProvider with ChangeNotifier {
   Future<bool> addHabit(Habit habit, {required bool isPremium}) async {
     _setLoading(true);
     try {
-      // 🔧 LAYER 1: In-memory validation
-      final currentActiveCount = habitCount;
-
-      if (!isPremium && currentActiveCount >= Constants.freeHabitLimit) {
-        _setError(Constants.habitLimitMessage);
-        if (kDebugMode) {
-          AppLog.d(
-            '🚫 HabitProvider: Rejected habit creation - memory check ($currentActiveCount/${Constants.freeHabitLimit})',
-          );
-        }
-        return false;
-      }
-
-      // 🔧 LAYER 2: Database validation (double-check)
-      final databaseHabits = await _databaseService.getActiveHabits();
-      if (!isPremium && databaseHabits.length >= Constants.freeHabitLimit) {
-        _setError(Constants.habitLimitMessage);
-        if (kDebugMode) {
-          AppLog.d(
-            '🚫 HabitProvider: Rejected habit creation - database check (${databaseHabits.length}/${Constants.freeHabitLimit})',
-          );
-        }
-        return false;
-      }
-
       // 🔧 LAYER 3: Create habit with timestamp validation
       final habitWithId = habit.copyWith(
         createdAt: DateTime.now(),
@@ -126,27 +101,13 @@ class HabitProvider with ChangeNotifier {
       final id = await _databaseService.createHabit(habitWithId);
       final newHabit = habitWithId.copyWith(id: id);
 
-      // 🔧 LAYER 4: Post-creation validation
-      final updatedHabits = await _databaseService.getActiveHabits();
-      if (!isPremium && updatedHabits.length > Constants.freeHabitLimit) {
-        // Rollback - this should never happen but is a safety measure
-        await _databaseService.deleteHabit(id);
-        _setError('Safety limit exceeded. Habit creation cancelled.');
-        if (kDebugMode) {
-          AppLog.d(
-            '🚨 HabitProvider: Emergency rollback - post-creation limit exceeded',
-          );
-        }
-        return false;
-      }
-
       // 🔧 SUCCESS: Update local state
       _habits.insert(0, newHabit);
       _clearError();
 
       if (kDebugMode) {
         AppLog.d(
-          '✅ HabitProvider: Successfully created habit "${newHabit.name}" ($habitCount/${isPremium ? "∞" : Constants.freeHabitLimit})',
+          '✅ HabitProvider: Successfully created habit "${newHabit.name}" ($habitCount)',
         );
       }
 
@@ -226,14 +187,6 @@ class HabitProvider with ChangeNotifier {
         orElse: () => throw Exception('Habit not found or inactive'),
       );
 
-      // 🔧 NEW: For voice input, ensure habit still belongs to valid set
-      if (inputMethod == 'voice' && !isPremium) {
-        final currentActiveCount = habitCount;
-        if (currentActiveCount > Constants.freeHabitLimit) {
-          throw Exception('Voice logging unavailable - habit limit exceeded');
-        }
-      }
-
       final habitLog = HabitLog(
         habitId: habitId,
         completedAt: DateTime.now(),
@@ -301,11 +254,10 @@ class HabitProvider with ChangeNotifier {
   bool isHabitCompletedToday(int habitId) {
     final count = getCompletionCountToday(habitId);
 
-    // Ensure habit is still active and get target
-    final habit = _habits.firstWhere(
-      (h) => h.id == habitId,
-      orElse: () => throw Exception('Habit not found'),
-    );
+    // If the habit isn't loaded yet, treat it as not completed.
+    final habitIndex = _habits.indexWhere((h) => h.id == habitId && h.isActive);
+    if (habitIndex == -1) return false;
+    final habit = _habits[habitIndex];
 
     // 🔔 CHANGED: Skips now count as "attempts" or "slots used",
     // but don't automatically mark the WHOLE day as finished unless target met.
@@ -376,25 +328,13 @@ class HabitProvider with ChangeNotifier {
     final habitIndex = _habits.indexWhere((h) => h.id == habitId && h.isActive);
     if (habitIndex == -1) return false;
 
-    // If premium, can access all habits
-    if (isPremium) return true;
-
-    // For free users, only allow access to first N habits (based on creation order)
-    final activeHabits = _habits.where((h) => h.isActive).toList();
-    activeHabits.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-
-    final allowedHabits = activeHabits.take(Constants.freeHabitLimit).toList();
-    return allowedHabits.any((h) => h.id == habitId);
+    // App is currently fully free.
+    return true;
   }
 
   // 🔧 NEW: Get habits accessible to current user tier
   List<Habit> getAccessibleHabits({bool isPremium = false}) {
-    if (isPremium) return todayHabits;
-
-    final activeHabits = todayHabits;
-    activeHabits.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-
-    return activeHabits.take(Constants.freeHabitLimit).toList();
+    return todayHabits;
   }
 
   // 🔧 NEW: Force reload from database (for critical operations)

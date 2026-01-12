@@ -1,5 +1,5 @@
 name: ai_voice_habit_tracker
-description: An AI-powered habit tracker with voice input capabilities
+description: A free habit tracker with reminders and analytics
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -17,9 +17,7 @@ dependencies:
   sqflite: ^2.3.3+1
   path: ^1.9.0
   
-  # HTTP & API
-  http: ^1.2.1
-  dio: ^5.4.3+1
+  # (AI/API removed)
   
   # Permissions Only - Lightweight
   permission_handler: ^12.0.1
@@ -36,8 +34,7 @@ dependencies:
   # Icons
   cupertino_icons: ^1.0.8
   
-  # Premium Features
-  in_app_purchase: ^3.1.13
+  # Notifications
   flutter_local_notifications: ^19.3.1
   timezone: ^0.10.1
   google_fonts: ^6.3.3

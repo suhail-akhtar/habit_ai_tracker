@@ -3,13 +3,9 @@ import 'package:provider/provider.dart';
 import '../providers/habit_provider.dart';
 import '../providers/user_provider.dart';
 import '../widgets/habit_card.dart';
-import '../widgets/voice_button.dart';
-import '../widgets/premium_dialog.dart';
 import '../widgets/dashboard/bento_grid.dart'; // Import BentoGrid
 import '../utils/theme.dart';
-import '../utils/constants.dart';
 import '../utils/app_log.dart';
-import 'voice_input_screen.dart';
 import 'habit_setup_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -125,9 +121,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: VoiceButton(
-        onPressed: () => _openVoiceInput(context),
-        size: 72, // Larger FAB
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _handleAddNewHabit(context),
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -187,7 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       children: [
         Text(title, style: AppTheme.headlineSmall),
         IconButton(
-          onPressed: () => _handleAddNewHabit(context, userProvider),
+          onPressed: () => _handleAddNewHabit(context),
           icon: Container(
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primaryContainer,
@@ -205,25 +201,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  void _handleAddNewHabit(BuildContext context, UserProvider userProvider) {
-    final validation = userProvider.validateHabitCreation();
-
-    if (!validation.isAllowed) {
-      showPremiumDialog(
-        context,
-        feature: 'Create more than ${Constants.freeHabitLimit} habits',
-      );
-      return;
-    }
-
+  void _handleAddNewHabit(BuildContext context) {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => const HabitSetupScreen()));
-  }
-
-  void _openVoiceInput(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (context) => const VoiceInputScreen()));
   }
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'constants.dart';
-import '../providers/voice_provider.dart';
 import 'theme.dart';
 
 class Helpers {
@@ -235,54 +234,4 @@ class Helpers {
     return 'Very Poor';
   }
 
-  /// Validate voice command input
-  static bool isValidVoiceCommand(String input) {
-    if (input.trim().isEmpty) return false;
-    if (input.length < 3) return false;
-    if (input.length > 200) return false;
-    return true;
-  }
-
-  /// Extract habit name from voice text using simple NLP
-  static String? extractHabitName(String voiceText, List<String> habitNames) {
-    final words = voiceText.toLowerCase().split(' ');
-
-    // Find the best matching habit name
-    String? bestMatch;
-    int maxMatchCount = 0;
-
-    for (final habitName in habitNames) {
-      final habitWords = habitName.toLowerCase().split(' ');
-      int matchCount = 0;
-
-      for (final habitWord in habitWords) {
-        if (words.contains(habitWord)) {
-          matchCount++;
-        }
-      }
-
-      if (matchCount > maxMatchCount && matchCount > 0) {
-        maxMatchCount = matchCount;
-        bestMatch = habitName;
-      }
-    }
-
-    return bestMatch;
-  }
-
-  /// Format voice feedback message
-  static String formatVoiceFeedback(VoiceCommand command) {
-    if (command.habitName == null) {
-      return 'Could not identify the habit from your voice input';
-    }
-
-    switch (command.action) {
-      case VoiceAction.completed:
-        return '✅ "${command.habitName}" marked as completed!';
-      case VoiceAction.skipped:
-        return '⏭️ "${command.habitName}" marked as skipped';
-      case VoiceAction.none:
-        return '❓ Unable to determine action for "${command.habitName}"';
-    }
-  }
 }

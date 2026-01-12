@@ -8,7 +8,6 @@ import '../services/notification_service.dart';
 import '../utils/theme.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
-import '../widgets/premium_dialog.dart';
 
 class HabitSetupScreen extends StatefulWidget {
   final Habit? habitToEdit;
@@ -46,32 +45,6 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     super.initState();
     if (widget.habitToEdit != null) {
       _initializeWithExistingHabit();
-    }
-    // Check premium limits on screen load
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkPremiumLimitsOnLoad();
-    });
-  }
-
-  void _checkPremiumLimitsOnLoad() {
-    if (widget.habitToEdit != null) return; // Editing existing habit
-    if (!mounted) return;
-
-    final userProvider = context.read<UserProvider>();
-    final validation = userProvider.validateHabitCreation();
-
-    if (!validation.isAllowed) {
-      // Show premium dialog immediately and go back
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        showPremiumDialog(
-          context,
-          feature: 'Create more than ${Constants.freeHabitLimit} habits',
-          onClose: () {
-            if (mounted) Navigator.of(context).pop();
-          },
-        );
-      });
     }
   }
 
@@ -181,73 +154,8 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   }
 
   Widget _buildPremiumStatusBanner(UserProvider userProvider) {
-    final validation = userProvider.validateHabitCreation();
-
-    if (validation.type == PremiumValidationType.success &&
-        userProvider.isPremium) {
-      return const SizedBox.shrink();
-    }
-
-    Color backgroundColor;
-    Color textColor;
-    IconData icon;
-
-    if (!validation.isAllowed) {
-      backgroundColor = AppTheme.errorColor.withAlpha(26);
-      textColor = AppTheme.errorColor;
-      icon = Icons.block;
-    } else if (validation.type == PremiumValidationType.warning) {
-      backgroundColor = AppTheme.warningColor.withAlpha(26);
-      textColor = AppTheme.warningColor;
-      icon = Icons.warning;
-    } else {
-      backgroundColor = AppTheme.infoColor.withAlpha(26);
-      textColor = AppTheme.infoColor;
-      icon = Icons.info;
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppTheme.spacingM),
-      color: backgroundColor,
-      child: Row(
-        children: [
-          Icon(icon, color: textColor, size: 20),
-          const SizedBox(width: AppTheme.spacingS),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!userProvider.isPremium) ...[
-                  Text(
-                    'Free Tier: ${userProvider.habitCount}/${Constants.freeHabitLimit} habits used',
-                    style: AppTheme.bodySmall.copyWith(
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (validation.message != null) ...[
-                    const SizedBox(height: AppTheme.spacingXS),
-                    Text(
-                      validation.message!,
-                      style: AppTheme.bodySmall.copyWith(color: textColor),
-                    ),
-                  ],
-                ],
-              ],
-            ),
-          ),
-          if (!userProvider.isPremium)
-            TextButton(
-              onPressed: () => showPremiumDialog(context),
-              child: Text(
-                'Upgrade',
-                style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
-              ),
-            ),
-        ],
-      ),
-    );
+    // App is currently fully free.
+    return const SizedBox.shrink();
   }
 
   Widget _buildHabitPreview() {
@@ -989,18 +897,6 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   ) async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Double-check premium limits before saving
-    if (widget.habitToEdit == null) {
-      final validation = userProvider.validateHabitCreation();
-      if (!validation.isAllowed) {
-        showPremiumDialog(
-          context,
-          feature: 'Create more than ${Constants.freeHabitLimit} habits',
-        );
-        return;
-      }
-    }
-
     setState(() {
       _isLoading = true;
     });
@@ -1052,7 +948,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         // Creating new habit
         final success = await habitProvider.addHabit(
           habit,
-          isPremium: userProvider.isPremium,
+          isPremium: true,
         );
         if (success && mounted) {
           // Update user provider habit count

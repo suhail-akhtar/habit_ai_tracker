@@ -1,19 +1,20 @@
 import 'package:flutter/foundation.dart';
 import '../services/database_service.dart';
 import '../models/user_settings.dart';
-import '../utils/constants.dart';
 import '../utils/app_log.dart';
 
 class UserProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
 
-  bool _isPremium = false;
-  String _subscriptionStatus = 'inactive';
+  // App is currently fully free: keep the fields for compatibility,
+  // but treat all users as premium/unlimited.
+  bool _isPremium = true;
+  String _subscriptionStatus = 'active';
   int _habitCount = 0;
   final Map<String, dynamic> _settings = {};
 
   // 🔧 NEW: Track enforcement state
-  bool _isEnforcementActive = true;
+  bool _isEnforcementActive = false;
   DateTime? _lastHabitCountSync;
 
   bool get isPremium => _isPremium;
@@ -23,99 +24,38 @@ class UserProvider with ChangeNotifier {
 
   // 🔧 ENHANCED: Strict premium enforcement with fail-safe
   bool get canCreateMoreHabits {
-    if (!_isEnforcementActive) return false; // Fail-safe
-    if (_isPremium) return true;
-    return _habitCount < Constants.freeHabitLimit;
+    return true;
   }
 
   int get remainingFreeHabits {
-    if (_isPremium) return -1; // Unlimited
-    final remaining = Constants.freeHabitLimit - _habitCount;
-    return remaining > 0 ? remaining : 0;
+    return -1; // Unlimited
   }
 
   // 🔧 ENHANCED: More granular limit checking
-  bool get hasReachedFreeLimit =>
-      !_isPremium && _habitCount >= Constants.freeHabitLimit;
+  bool get hasReachedFreeLimit => false;
 
-  bool get isAtWarningLimit =>
-      !_isPremium && _habitCount == Constants.freeHabitLimit - 1;
+  bool get isAtWarningLimit => false;
 
   // 🔧 ENHANCED: Comprehensive premium feature validation
   bool canAccessPremiumFeature(String featureName) {
-    if (!_isEnforcementActive) return false; // Fail-safe
-    return _isPremium;
+    return true;
   }
 
   // 🔧 ENHANCED: Detailed validation with multiple check points
   PremiumValidationResult validateHabitCreation() {
-    // 🔧 NEW: Force habit count sync before validation
-    _syncHabitCountFromDatabase();
-
-    if (!_isEnforcementActive) {
-      return PremiumValidationResult.blocked(
-        'Feature validation is currently disabled. Please restart the app.',
-      );
-    }
-
-    if (_isPremium) {
-      return PremiumValidationResult.success();
-    }
-
-    if (_habitCount >= Constants.freeHabitLimit) {
-      return PremiumValidationResult.blocked(Constants.habitLimitMessage);
-    }
-
-    if (_habitCount == Constants.freeHabitLimit - 1) {
-      return PremiumValidationResult.warning(Constants.lastFreeHabitMessage);
-    }
-
     return PremiumValidationResult.success();
   }
 
   // 🔧 NEW: Validate specific premium features
   PremiumValidationResult validatePremiumFeature(String featureName) {
-    if (!_isEnforcementActive) {
-      return PremiumValidationResult.blocked(
-        'Feature validation is currently disabled.',
-      );
-    }
-
-    if (_isPremium) {
-      return PremiumValidationResult.success();
-    }
-
-    String message;
-    switch (featureName) {
-      case Constants.premiumFeatureUnlimitedHabits:
-        message = 'Unlimited habits require Premium subscription';
-        break;
-      case Constants.premiumFeatureAdvancedInsights:
-        message = 'Advanced AI insights require Premium subscription';
-        break;
-      case Constants.premiumFeatureDataExport:
-        message = 'Data export requires Premium subscription';
-        break;
-      case Constants.premiumFeatureDetailedAnalytics:
-        message = 'Detailed analytics require Premium subscription';
-        break;
-      default:
-        message = Constants.premiumRequiredMessage;
-    }
-
-    return PremiumValidationResult.blocked(message);
+    return PremiumValidationResult.success();
   }
 
   Future<void> loadUserData() async {
     try {
-      _isEnforcementActive = true; // Always start with enforcement active
-
-      // Load subscription status
-      final subscriptionSetting = await _databaseService.getSetting(
-        'subscription_status',
-      );
-      _subscriptionStatus = subscriptionSetting?.value ?? 'inactive';
-      _isPremium = _subscriptionStatus == 'active';
+      _isEnforcementActive = false;
+      _subscriptionStatus = 'active';
+      _isPremium = true;
 
       // 🔧 ENHANCED: Always sync habit count from database
       await _forceHabitCountSync();
@@ -129,7 +69,9 @@ class UserProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       AppLog.e('Failed to load user data', e);
-      _isEnforcementActive = false; // Disable enforcement on error
+      _isEnforcementActive = false;
+      _subscriptionStatus = 'active';
+      _isPremium = true;
     }
   }
 
@@ -150,28 +92,10 @@ class UserProvider with ChangeNotifier {
   }
 
   // 🔧 NEW: Immediate sync for validation
-  void _syncHabitCountFromDatabase() {
-    if (_lastHabitCountSync == null ||
-        DateTime.now().difference(_lastHabitCountSync!).inMinutes > 5) {
-      _forceHabitCountSync();
-    }
-  }
-
   // 🔧 NEW: Data integrity validation
   Future<void> _validateDataIntegrity() async {
     try {
-      // Ensure habit count doesn't exceed free limit for non-premium users
-      if (!_isPremium && _habitCount > Constants.freeHabitLimit) {
-        if (kDebugMode) {
-          AppLog.d(
-            '⚠️ UserProvider: Data integrity issue - non-premium user has $_habitCount habits (limit: ${Constants.freeHabitLimit})',
-          );
-        }
-
-        // This could indicate a bypass attempt or data corruption
-        // For now, we'll just log it and maintain the count
-        // In a production app, you might want to disable some habits
-      }
+      // App is currently fully free; keep this hook for future checks.
     } catch (e) {
       AppLog.e('Data integrity validation failed', e);
     }
@@ -201,18 +125,6 @@ class UserProvider with ChangeNotifier {
 
     final oldCount = _habitCount;
 
-    // 🔧 NEW: Validate count doesn't exceed free limit for non-premium users
-    if (!_isPremium && count > Constants.freeHabitLimit) {
-      if (kDebugMode) {
-        AppLog.d(
-          '🚫 UserProvider: Rejected habit count update - would exceed free limit ($count > ${Constants.freeHabitLimit})',
-        );
-      }
-      throw Exception(
-        'Cannot exceed free tier limit of ${Constants.freeHabitLimit} habits',
-      );
-    }
-
     _habitCount = count;
     _lastHabitCountSync = DateTime.now();
 
@@ -228,15 +140,6 @@ class UserProvider with ChangeNotifier {
   // 🔧 ENHANCED: Increment with strict validation
   Future<bool> incrementHabitCount() async {
     await _forceHabitCountSync(); // Always sync first
-
-    if (!canCreateMoreHabits) {
-      if (kDebugMode) {
-        AppLog.d(
-          '🚫 UserProvider: Cannot increment - at limit ($_habitCount/${Constants.freeHabitLimit})',
-        );
-      }
-      return false;
-    }
 
     _habitCount++;
     _lastHabitCountSync = DateTime.now();
@@ -287,39 +190,17 @@ class UserProvider with ChangeNotifier {
   }
 
   Future<void> upgradeToPremium() async {
-    try {
-      // This would typically involve in-app purchase logic
-      await updateSetting('subscription_status', 'active');
-      _subscriptionStatus = 'active';
-      _isPremium = true;
-
-      if (kDebugMode) {
-        AppLog.d('🌟 UserProvider: Upgraded to Premium');
-      }
-
-      notifyListeners();
-    } catch (e) {
-      AppLog.e('Failed to upgrade to premium', e);
-    }
+    // No-op: app is free.
+    _subscriptionStatus = 'active';
+    _isPremium = true;
+    notifyListeners();
   }
 
   Future<void> cancelSubscription() async {
-    try {
-      await updateSetting('subscription_status', 'inactive');
-      _subscriptionStatus = 'inactive';
-      _isPremium = false;
-
-      // 🔧 NEW: Re-validate habit count after downgrade
-      await _validateDataIntegrity();
-
-      if (kDebugMode) {
-        AppLog.d('❌ UserProvider: Cancelled Premium subscription');
-      }
-
-      notifyListeners();
-    } catch (e) {
-      AppLog.e('Failed to cancel subscription', e);
-    }
+    // No-op: app is free.
+    _subscriptionStatus = 'active';
+    _isPremium = true;
+    notifyListeners();
   }
 
   String getSetting(String key, {String defaultValue = ''}) {

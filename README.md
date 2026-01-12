@@ -1,24 +1,16 @@
-# AI Voice Habit Tracker
+# Habit Tracker
 
-A powerful Flutter application that combines voice recognition with AI-powered habit tracking to help users build and maintain healthy habits.
+A Flutter habit tracker with reminders and analytics. The app is currently fully free and does not include AI/voice features.
 
 ## 🌟 Features
 
 ### Core Features
 
-- **Voice-Powered Habit Logging**: Use natural language voice commands to log habit completions
-- **AI-Powered Insights**: Get personalized recommendations and weekly insights powered by Google Gemini AI
+- **Habit Logging**: Track completions and skips
+- **Reminders**: Schedule simple/ringing/alarm-style notifications
 - **Local Data Storage**: All data stored locally using SQLite for privacy and offline functionality
 - **Beautiful Analytics**: Track your progress with interactive charts and detailed analytics
 - **Streak Tracking**: Monitor your habit streaks and celebrate milestones
-
-### Premium Features
-
-- **Unlimited Habits**: Create as many habits as you want (free tier limited to 3)
-- **Advanced AI Insights**: Get detailed pattern analysis and personalized recommendations
-- **Data Export**: Export your data to CSV format
-- **Cloud Backup**: Automatic cloud backup of your habit data
-- **Custom Themes**: Personalize your app with custom color schemes
 
 ## 🚀 Getting Started
 
@@ -27,7 +19,7 @@ A powerful Flutter application that combines voice recognition with AI-powered h
 - Flutter 3.32.6 or later
 - Dart 3.8.1 or later
 - Android Studio / VS Code
-- Google Gemini API key (for AI features)
+
 
 ### Installation
 
