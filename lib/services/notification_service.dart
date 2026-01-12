@@ -8,6 +8,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:permission_handler/permission_handler.dart';
 import '../models/habit.dart';
 import '../models/notification_settings.dart';
+import '../utils/app_log.dart';
 
 // For vibration pattern
 // For background logging
@@ -21,9 +22,10 @@ class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
-  
+
   // 🔔 NEW: Stream for notification tap events
-  final StreamController<String?> _payloadController = StreamController<String?>.broadcast();
+  final StreamController<String?> _payloadController =
+      StreamController<String?>.broadcast();
   Stream<String?> get payloadStream => _payloadController.stream;
 
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
@@ -31,14 +33,16 @@ class NotificationService {
 
   bool _isInitialized = false;
   bool _hasPermission = false;
-  
+
   // 🔔 NEW: Store handler reference
   void Function(NotificationResponse)? _backgroundHandler;
 
   bool get isInitialized => _isInitialized;
   bool get hasPermission => _hasPermission;
 
-  Future<void> initialize(void Function(NotificationResponse)? backgroundHandler) async {
+  Future<void> initialize(
+    void Function(NotificationResponse)? backgroundHandler,
+  ) async {
     _backgroundHandler = backgroundHandler; // Store it
     try {
       tz.initializeTimeZones();
@@ -65,16 +69,72 @@ class NotificationService {
         onDidReceiveBackgroundNotificationResponse: backgroundHandler,
       );
 
+      await _createAndroidNotificationChannels();
+
       _isInitialized = true;
       // 🔧 FIX: Do NOT request permissions immediately on startup in main()
       // This causes hangs/crashes on some devices if UI isn't ready.
       // Permissions should be requested when needed or on dashboard load.
-      // await requestPermissions(); 
+      // await requestPermissions();
 
-      print('✅ NotificationService initialized successfully');
+      AppLog.d('✅ NotificationService initialized successfully');
     } catch (e) {
-      print('❌ NotificationService initialization failed: $e');
+      AppLog.e('❌ NotificationService initialization failed', e);
       _isInitialized = false;
+    }
+  }
+
+  Future<void> _createAndroidNotificationChannels() async {
+    final androidImplementation = _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (androidImplementation == null) return;
+
+    try {
+      // NOTE: channel properties cannot be changed once a channel is created.
+      // If these channels already existed with different settings, users may need
+      // to adjust channel settings in Android system UI.
+      await androidImplementation.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'simple_reminders',
+          'Simple Reminders',
+          description: 'Simple habit reminder notifications',
+          importance: Importance.defaultImportance,
+        ),
+      );
+
+      // Use v2 channel IDs so fixes apply even if older channels were created
+      // with lower importance/sound settings.
+      await androidImplementation.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'ringing_reminders_v2',
+          'Ringing Reminders',
+          description: 'Persistent ringing habit reminders',
+          importance: Importance.max,
+        ),
+      );
+
+      await androidImplementation.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'alarm_reminders_v2',
+          'Alarm Reminders',
+          description: 'Full-screen alarm-style reminders',
+          importance: Importance.max,
+        ),
+      );
+
+      await androidImplementation.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'achievements',
+          'Achievements',
+          description: 'Habit streak achievements',
+          importance: Importance.high,
+        ),
+      );
+    } catch (e) {
+      // Non-fatal
+      AppLog.e('⚠️ Failed to create notification channels', e);
     }
   }
 
@@ -87,20 +147,34 @@ class NotificationService {
         final status = await Permission.notification.request();
         _hasPermission = status == PermissionStatus.granted;
       }
-      
+
       // 🔔 NEW: Request Exact Alarm permission (Android 12+)
       // This is crucial for reliable scheduling
       final androidImplementation = _flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-          
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
       if (androidImplementation != null) {
         await androidImplementation.requestExactAlarmsPermission();
+
+        // Android 14+ may require explicit user approval for full-screen intents.
+        // This is best-effort: it may not be available/allowed on all devices.
+        try {
+          await androidImplementation.requestFullScreenIntentPermission();
+        } catch (e) {
+          // Non-fatal
+          AppLog.e(
+            'ℹ️ Full-screen intent permission request skipped/failed',
+            e,
+          );
+        }
       }
 
-      print('✅ Notification permissions: $_hasPermission');
+      AppLog.d('✅ Notification permissions: $_hasPermission');
       return _hasPermission;
     } catch (e) {
-      print('❌ Permission request failed: $e');
+      AppLog.e('❌ Permission request failed', e);
       _hasPermission = false;
       return false;
     }
@@ -112,7 +186,7 @@ class NotificationService {
     List<Habit>? associatedHabits,
   }) async {
     if (!_isInitialized || !_hasPermission) {
-      print(
+      AppLog.d(
         '❌ Cannot schedule notification: init=$_isInitialized, permission=$_hasPermission',
       );
       return false;
@@ -121,11 +195,11 @@ class NotificationService {
     try {
       // Cancel existing notification with same ID
       if (settings.id != null) {
-        await _flutterLocalNotificationsPlugin.cancel(settings.id!);
+        await cancelNotification(settings.id!);
       }
 
       if (!settings.isEnabled) {
-        print('ℹ️ Notification disabled, skipping schedule');
+        AppLog.d('ℹ️ Notification disabled, skipping schedule');
         return true;
       }
 
@@ -138,6 +212,10 @@ class NotificationService {
         final notificationId =
             (settings.id ?? 0) * 1000 + i; // Unique ID per instance
 
+        final androidScheduleMode = settings.type == NotificationType.alarm
+            ? AndroidScheduleMode.alarmClock
+            : AndroidScheduleMode.exactAllowWhileIdle;
+
         try {
           await _flutterLocalNotificationsPlugin.zonedSchedule(
             notificationId,
@@ -145,32 +223,56 @@ class NotificationService {
             _buildMessage(settings, associatedHabits),
             scheduledTime,
             notificationDetails,
-            // 🔔 FIX: Use exactAllowWhileIdle for everything to ensure it fires in Doze mode
-            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            androidScheduleMode: androidScheduleMode,
 
             matchDateTimeComponents: _getMatchComponents(settings),
             payload:
-                'custom_notification:${settings.id}:${settings.habitIds.join(",")}',
+                'custom_notification:${settings.type.name}:${settings.id}:${settings.habitIds.join(",")}',
           );
 
-          print(
+          AppLog.d(
             '✅ Scheduled notification #$notificationId for ${scheduledTime.toString()}',
           );
         } catch (e) {
-          print('❌ Failed to schedule notification #$notificationId: $e');
+          AppLog.e('❌ Failed to schedule notification #$notificationId', e);
           allScheduled = false;
         }
       }
 
       return allScheduled;
     } catch (e) {
-      print('❌ Failed to schedule notification: $e');
+      AppLog.e('❌ Failed to schedule notification', e);
       return false;
     }
   }
 
   NotificationDetails _buildNotificationDetails(NotificationSettings settings) {
     AndroidNotificationDetails androidDetails;
+
+    const acceptAction = AndroidNotificationAction(
+      'accept',
+      'Accept',
+      showsUserInterface: false,
+      cancelNotification: true,
+    );
+    const rejectAction = AndroidNotificationAction(
+      'reject',
+      'Reject',
+      showsUserInterface: false,
+      cancelNotification: true,
+    );
+    const snoozeAction = AndroidNotificationAction(
+      'snooze',
+      'Snooze',
+      showsUserInterface: false,
+      cancelNotification: true,
+    );
+    const dismissAction = AndroidNotificationAction(
+      'dismiss',
+      'Dismiss',
+      showsUserInterface: false,
+      cancelNotification: true,
+    );
 
     switch (settings.type) {
       case NotificationType.simple:
@@ -188,7 +290,7 @@ class NotificationService {
 
       case NotificationType.ringing:
         androidDetails = AndroidNotificationDetails(
-          'ringing_reminders',
+          'ringing_reminders_v2',
           'Ringing Reminders',
           channelDescription: 'Persistent ringing habit reminders',
           importance: Importance.max, // 🔔 Upgraded to max
@@ -201,13 +303,20 @@ class NotificationService {
           ongoing: true, // Makes it persistent like a call
           autoCancel: false, // User must manually dismiss
           timeoutAfter: 30000, // Auto-dismiss after 30 seconds
-          additionalFlags: Int32List.fromList([4]), // 🔔 Flag 4 = FLAG_INSISTENT (Loop sound)
+          additionalFlags: Int32List.fromList([
+            4,
+          ]), // 🔔 Flag 4 = FLAG_INSISTENT (Loop sound)
           audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
+          fullScreenIntent: true,
+          actions: const <AndroidNotificationAction>[
+            acceptAction,
+            rejectAction,
+          ],
         );
         break;
       case NotificationType.alarm:
         androidDetails = AndroidNotificationDetails(
-          'alarm_reminders',
+          'alarm_reminders_v2',
           'Alarm Reminders',
           channelDescription: 'Full-screen alarm-style reminders',
           importance: Importance.max,
@@ -229,10 +338,15 @@ class NotificationService {
           category: AndroidNotificationCategory.alarm,
           ongoing: true, // Persistent
           autoCancel: false, // Must be manually dismissed
-          additionalFlags: Int32List.fromList([4]), // 🔔 Flag 4 = FLAG_INSISTENT (Loop sound)
+          additionalFlags: Int32List.fromList([
+            4,
+          ]), // 🔔 Flag 4 = FLAG_INSISTENT (Loop sound)
           audioAttributesUsage: AudioAttributesUsage.alarm,
-          // 🔔 REMOVED: Custom Actions (Buttons) removed as per user request
-          // Tapping the notification body will trigger the App Open + Dialog flow.
+          actions: const <AndroidNotificationAction>[
+            snoozeAction,
+            dismissAction,
+            acceptAction,
+          ],
         );
         break;
     }
@@ -244,6 +358,73 @@ class NotificationService {
     );
 
     return NotificationDetails(android: androidDetails, iOS: iOSDetails);
+  }
+
+  Future<void> scheduleSnoozedAlarm({
+    required String title,
+    required String body,
+    required String payload,
+    Duration delay = const Duration(minutes: 10),
+  }) async {
+    if (!_isInitialized) return;
+
+    final scheduled = tz.TZDateTime.now(tz.local).add(delay);
+    final notificationId = DateTime.now().millisecondsSinceEpoch.remainder(
+      1000000000,
+    );
+
+    final androidDetails = AndroidNotificationDetails(
+      'alarm_reminders_v2',
+      'Alarm Reminders',
+      channelDescription: 'Full-screen alarm-style reminders',
+      importance: Importance.max,
+      priority: Priority.max,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
+      fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
+      ongoing: true,
+      autoCancel: false,
+      additionalFlags: Int32List.fromList([4]),
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      actions: const <AndroidNotificationAction>[
+        AndroidNotificationAction(
+          'snooze',
+          'Snooze',
+          showsUserInterface: false,
+          cancelNotification: true,
+        ),
+        AndroidNotificationAction(
+          'dismiss',
+          'Dismiss',
+          showsUserInterface: false,
+          cancelNotification: true,
+        ),
+        AndroidNotificationAction(
+          'accept',
+          'Accept',
+          showsUserInterface: false,
+          cancelNotification: true,
+        ),
+      ],
+    );
+
+    const iOSDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    await _flutterLocalNotificationsPlugin.zonedSchedule(
+      notificationId,
+      title,
+      body,
+      scheduled,
+      NotificationDetails(android: androidDetails, iOS: iOSDetails),
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      payload: payload,
+    );
   }
 
   List<tz.TZDateTime> _calculateScheduledTimes(NotificationSettings settings) {
@@ -376,18 +557,18 @@ class NotificationService {
           notificationId * 1000 + i,
         );
       }
-      print('✅ Cancelled notification group $notificationId');
+      AppLog.d('✅ Cancelled notification group $notificationId');
     } catch (e) {
-      print('❌ Failed to cancel notification: $e');
+      AppLog.e('❌ Failed to cancel notification', e);
     }
   }
 
   Future<void> cancelAllNotifications() async {
     try {
       await _flutterLocalNotificationsPlugin.cancelAll();
-      print('✅ Cancelled all notifications');
+      AppLog.d('✅ Cancelled all notifications');
     } catch (e) {
-      print('❌ Failed to cancel all notifications: $e');
+      AppLog.e('❌ Failed to cancel all notifications', e);
     }
   }
 
@@ -403,75 +584,79 @@ class NotificationService {
 
     if (habit.frequencyType == 'interval') {
       // ⌚ Interval Mode
-      if (habit.windowStartTime != null && 
-          habit.windowEndTime != null && 
+      if (habit.windowStartTime != null &&
+          habit.windowEndTime != null &&
           habit.intervalMinutes != null) {
-          
         final startParts = habit.windowStartTime!.split(':');
         final endParts = habit.windowEndTime!.split(':');
-        
-        int startMins = int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
+
+        int startMins =
+            int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
         int endMins = int.parse(endParts[0]) * 60 + int.parse(endParts[1]);
-        
-         // Handle overnight schedules
+
+        // Handle overnight schedules
         if (endMins <= startMins) endMins += 24 * 60;
-        
+
         int currentMins = startMins;
-        
+
         while (currentMins < endMins) {
-           final hour = (currentMins ~/ 60) % 24;
-           final minute = currentMins % 60;
-           times.add(TimeOfDay(hour: hour, minute: minute));
-           
-           currentMins += habit.intervalMinutes!;
+          final hour = (currentMins ~/ 60) % 24;
+          final minute = currentMins % 60;
+          times.add(TimeOfDay(hour: hour, minute: minute));
+
+          currentMins += habit.intervalMinutes!;
         }
       }
     } else {
       // 📅 Daily Mode
       if (habit.reminderTime != null) {
         final parts = habit.reminderTime!.split(':');
-        times.add(TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])));
+        times.add(
+          TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])),
+        );
       }
     }
 
     // 2. Schedule Notifications
     for (int i = 0; i < times.length; i++) {
-       final time = times[i];
-       // Base ID + index (up to 100 slots per habit to be safe, though 10 is current cancel limit)
-       // Let's increment cancel limit or valid range
-       final notificationId = habit.id! * 1000 + i;
-       
-       final settings = NotificationSettings(
-          id: habit.id, // Group ID
-          title: '${habit.name} Reminder',
-          message: habit.frequencyType == 'interval' 
-              ? 'Time for your scheduled habit!' 
-              : 'Don\'t forget your goal today!',
-          time: time,
-          habitIds: [habit.id!],
-          repetition: RepetitionType.daily,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          isEnabled: true,
-          type: NotificationType.simple,
-       );
-       
-       // Manually schedule using zonedSchedule like generic method but with specific ID
-       // We can reuse scheduleNotification if we tweak it to accept specific ID override
-       // Or simpler: Just replicate the single schedule logic here for robustness
-       
-       // 🔔 IMPORTANT: Persist settings to internal DB so "System" knows about it
-       // Although for now we just schedule directly to ensure immediate functionality
-       
-       await _scheduleSingleNotification(notificationId, settings, habit);
+      final time = times[i];
+      // Base ID + index (up to 100 slots per habit to be safe, though 10 is current cancel limit)
+      // Let's increment cancel limit or valid range
+      final notificationId = habit.id! * 1000 + i;
+
+      final settings = NotificationSettings(
+        id: habit.id, // Group ID
+        title: '${habit.name} Reminder',
+        message: habit.frequencyType == 'interval'
+            ? 'Time for your scheduled habit!'
+            : 'Don\'t forget your goal today!',
+        time: time,
+        habitIds: [habit.id!],
+        repetition: RepetitionType.daily,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        isEnabled: true,
+        type: NotificationType.simple,
+      );
+
+      // Manually schedule using zonedSchedule like generic method but with specific ID
+      // We can reuse scheduleNotification if we tweak it to accept specific ID override
+      // Or simpler: Just replicate the single schedule logic here for robustness
+
+      // 🔔 IMPORTANT: Persist settings to internal DB so "System" knows about it
+      // Although for now we just schedule directly to ensure immediate functionality
+
+      await _scheduleSingleNotification(notificationId, settings, habit);
     }
-    
-    print('✅ Scheduled ${times.length} reminders for habit ${habit.id}');
+
+    AppLog.d('✅ Scheduled ${times.length} reminders for habit ${habit.id}');
   }
 
   Future<void> _scheduleSingleNotification(
-      int notificationId, NotificationSettings settings, Habit habit) async {
-      
+    int notificationId,
+    NotificationSettings settings,
+    Habit habit,
+  ) async {
     final now = DateTime.now();
     var scheduledDate = DateTime(
       now.year,
@@ -484,31 +669,35 @@ class NotificationService {
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
-    
+
     // Android Details with Actions
     const androidDetails = AndroidNotificationDetails(
-          'simple_reminders',
-          'Simple Reminders',
-          channelDescription: 'Simple habit reminder notifications',
-          importance: Importance.defaultImportance,
-          priority: Priority.defaultPriority,
-          showWhen: true,
-          enableVibration: true,
-          playSound: true,
+      'simple_reminders',
+      'Simple Reminders',
+      channelDescription: 'Simple habit reminder notifications',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
     );
-        
+
     const iOSDetails = DarwinNotificationDetails();
-    const details = NotificationDetails(android: androidDetails, iOS: iOSDetails);
-    
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iOSDetails,
+    );
+
     await _flutterLocalNotificationsPlugin.zonedSchedule(
-        notificationId,
-        settings.title,
-        settings.message,
-        tz.TZDateTime.from(scheduledDate, tz.local),
-        details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time, // Daily
-        payload: 'custom_notification:${habit.id}:${habit.id}',
+      notificationId,
+      settings.title,
+      settings.message,
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      details,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time, // Daily
+      payload:
+          'custom_notification:${settings.type.name}:${habit.id}:${habit.id}',
     );
   }
 
@@ -576,9 +765,9 @@ class NotificationService {
         payload: 'achievement:$habitName:$streakDays',
       );
 
-      print('✅ Showed streak achievement for $habitName: $streakDays days');
+      AppLog.d('✅ Showed streak achievement for $habitName: $streakDays days');
     } catch (e) {
-      print('❌ Failed to show achievement notification: $e');
+      AppLog.e('❌ Failed to show achievement notification', e);
     }
   }
 
@@ -587,7 +776,7 @@ class NotificationService {
       return await _flutterLocalNotificationsPlugin
           .pendingNotificationRequests();
     } catch (e) {
-      print('❌ Failed to get pending notifications: $e');
+      AppLog.e('❌ Failed to get pending notifications', e);
       return [];
     }
   }
@@ -595,10 +784,19 @@ class NotificationService {
   void _onNotificationTapped(NotificationResponse notificationResponse) {
     // 🔔 UPDATED: Handle foreground/background actions when app is running
     notifyAction(notificationResponse);
-    
+
+    // If an action button was pressed, don't also emit the payload to the UI.
+    // This avoids showing dialogs/screens after the user already selected Accept/Reject.
+    if (notificationResponse.actionId == 'accept' ||
+        notificationResponse.actionId == 'reject' ||
+        notificationResponse.actionId == 'dismiss' ||
+        notificationResponse.actionId == 'snooze') {
+      return;
+    }
+
     final payload = notificationResponse.payload;
-    print('🔔 Notification tapped with payload: $payload');
-    
+    AppLog.d('🔔 Notification tapped with payload: $payload');
+
     // 🔔 Notify listeners (UI) about the tap
     _payloadController.add(payload);
 
@@ -607,32 +805,33 @@ class NotificationService {
         final parts = payload.split(':');
         if (parts.length >= 2) {
           final notificationId = int.tryParse(parts[1]);
-          print('📱 Opening custom notification $notificationId');
+          AppLog.d('📱 Opening custom notification $notificationId');
           // Navigate to dashboard or specific habit
         }
       } else if (payload.startsWith('habit_reminder:')) {
         final habitId = int.tryParse(payload.split(':')[1]);
-        print('📱 Opening habit reminder for ID: $habitId');
+        AppLog.d('📱 Opening habit reminder for ID: $habitId');
       } else if (payload.startsWith('achievement:')) {
-        print('📱 Opening achievement notification');
+        AppLog.d('📱 Opening achievement notification');
       }
     }
   }
 
   // 🔔 NEW: Check if app was launched by notification
   Future<String?> getInitialPayload() async {
-    final details = await _flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+    final details = await _flutterLocalNotificationsPlugin
+        .getNotificationAppLaunchDetails();
     if (details != null && details.didNotificationLaunchApp) {
       return details.notificationResponse?.payload;
     }
     return null;
   }
-  
+
   // Reuse background logic for foreground for simplicity
   void notifyAction(NotificationResponse response) {
-     if (_backgroundHandler != null) {
-       _backgroundHandler!(response);
-     }
+    if (_backgroundHandler != null) {
+      _backgroundHandler!(response);
+    }
   }
 
   String formatTime(TimeOfDay time) {
@@ -650,7 +849,7 @@ class NotificationService {
         return TimeOfDay(hour: hour, minute: minute);
       }
     } catch (e) {
-      print('❌ Failed to parse time: $timeString');
+      AppLog.e('❌ Failed to parse time: $timeString', e);
     }
     return null;
   }

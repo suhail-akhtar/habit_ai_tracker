@@ -57,7 +57,14 @@ class Helpers {
   }
 
   static String colorToHex(Color color) {
-    return '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}';
+    final red = (color.r * 255.0).round().clamp(0, 255);
+    final green = (color.g * 255.0).round().clamp(0, 255);
+    final blue = (color.b * 255.0).round().clamp(0, 255);
+
+    return '#'
+        '${red.toRadixString(16).padLeft(2, '0')}'
+        '${green.toRadixString(16).padLeft(2, '0')}'
+        '${blue.toRadixString(16).padLeft(2, '0')}';
   }
 
   // Validation Helpers

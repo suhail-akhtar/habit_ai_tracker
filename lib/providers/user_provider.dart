@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../services/database_service.dart';
 import '../models/user_settings.dart';
 import '../utils/constants.dart';
+import '../utils/app_log.dart';
 
 class UserProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -127,7 +128,7 @@ class UserProvider with ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      print('Failed to load user data: $e');
+      AppLog.e('Failed to load user data', e);
       _isEnforcementActive = false; // Disable enforcement on error
     }
   }
@@ -140,10 +141,10 @@ class UserProvider with ChangeNotifier {
       _lastHabitCountSync = DateTime.now();
 
       if (kDebugMode) {
-        print('🔒 UserProvider: Synced habit count: $_habitCount');
+        AppLog.d('🔒 UserProvider: Synced habit count: $_habitCount');
       }
     } catch (e) {
-      print('Failed to sync habit count: $e');
+      AppLog.e('Failed to sync habit count', e);
       _habitCount = 0; // Fail-safe to most restrictive
     }
   }
@@ -162,7 +163,7 @@ class UserProvider with ChangeNotifier {
       // Ensure habit count doesn't exceed free limit for non-premium users
       if (!_isPremium && _habitCount > Constants.freeHabitLimit) {
         if (kDebugMode) {
-          print(
+          AppLog.d(
             '⚠️ UserProvider: Data integrity issue - non-premium user has $_habitCount habits (limit: ${Constants.freeHabitLimit})',
           );
         }
@@ -172,7 +173,7 @@ class UserProvider with ChangeNotifier {
         // In a production app, you might want to disable some habits
       }
     } catch (e) {
-      print('Data integrity validation failed: $e');
+      AppLog.e('Data integrity validation failed', e);
     }
   }
 
@@ -203,7 +204,7 @@ class UserProvider with ChangeNotifier {
     // 🔧 NEW: Validate count doesn't exceed free limit for non-premium users
     if (!_isPremium && count > Constants.freeHabitLimit) {
       if (kDebugMode) {
-        print(
+        AppLog.d(
           '🚫 UserProvider: Rejected habit count update - would exceed free limit ($count > ${Constants.freeHabitLimit})',
         );
       }
@@ -216,7 +217,9 @@ class UserProvider with ChangeNotifier {
     _lastHabitCountSync = DateTime.now();
 
     if (kDebugMode) {
-      print('🔒 UserProvider: Updated habit count: $oldCount → $_habitCount');
+      AppLog.d(
+        '🔒 UserProvider: Updated habit count: $oldCount → $_habitCount',
+      );
     }
 
     notifyListeners();
@@ -228,7 +231,7 @@ class UserProvider with ChangeNotifier {
 
     if (!canCreateMoreHabits) {
       if (kDebugMode) {
-        print(
+        AppLog.d(
           '🚫 UserProvider: Cannot increment - at limit ($_habitCount/${Constants.freeHabitLimit})',
         );
       }
@@ -239,7 +242,7 @@ class UserProvider with ChangeNotifier {
     _lastHabitCountSync = DateTime.now();
 
     if (kDebugMode) {
-      print('✅ UserProvider: Incremented habit count to $_habitCount');
+      AppLog.d('✅ UserProvider: Incremented habit count to $_habitCount');
     }
 
     notifyListeners();
@@ -253,7 +256,7 @@ class UserProvider with ChangeNotifier {
       _lastHabitCountSync = DateTime.now();
 
       if (kDebugMode) {
-        print('⬇️ UserProvider: Decremented habit count to $_habitCount');
+        AppLog.d('⬇️ UserProvider: Decremented habit count to $_habitCount');
       }
 
       notifyListeners();
@@ -279,7 +282,7 @@ class UserProvider with ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      print('Failed to update setting $key: $e');
+      AppLog.e('Failed to update setting $key', e);
     }
   }
 
@@ -291,12 +294,12 @@ class UserProvider with ChangeNotifier {
       _isPremium = true;
 
       if (kDebugMode) {
-        print('🌟 UserProvider: Upgraded to Premium');
+        AppLog.d('🌟 UserProvider: Upgraded to Premium');
       }
 
       notifyListeners();
     } catch (e) {
-      print('Failed to upgrade to premium: $e');
+      AppLog.e('Failed to upgrade to premium', e);
     }
   }
 
@@ -310,12 +313,12 @@ class UserProvider with ChangeNotifier {
       await _validateDataIntegrity();
 
       if (kDebugMode) {
-        print('❌ UserProvider: Cancelled Premium subscription');
+        AppLog.d('❌ UserProvider: Cancelled Premium subscription');
       }
 
       notifyListeners();
     } catch (e) {
-      print('Failed to cancel subscription: $e');
+      AppLog.e('Failed to cancel subscription', e);
     }
   }
 

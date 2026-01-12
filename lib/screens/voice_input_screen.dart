@@ -155,7 +155,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
                         color: Theme.of(context).colorScheme.surface,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withAlpha(26),
                             blurRadius: 4,
                             offset: const Offset(0, -2),
                           ),
@@ -228,7 +228,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
                     style: AppTheme.bodySmall.copyWith(
                       color: Theme.of(
                         context,
-                      ).colorScheme.onSurface.withOpacity(0.7),
+                      ).colorScheme.onSurface.withAlpha(179),
                     ),
                   ),
                 ],
@@ -251,8 +251,8 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
         shape: BoxShape.circle,
         gradient: RadialGradient(
           colors: [
-            Theme.of(context).colorScheme.primary.withOpacity(0.1),
-            Theme.of(context).colorScheme.primary.withOpacity(0.05),
+            Theme.of(context).colorScheme.primary.withAlpha(26),
+            Theme.of(context).colorScheme.primary.withAlpha(13),
             Colors.transparent,
           ],
         ),
@@ -269,7 +269,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
                 color: Theme.of(context).colorScheme.surface,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withAlpha(26),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -303,7 +303,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
         borderRadius: BorderRadius.circular(AppTheme.radiusS),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withAlpha(26),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -370,7 +370,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
             Text(
               'Hold phone close to mouth • Speak clearly • Say "I completed [habit name]"',
               style: AppTheme.bodySmall.copyWith(
-                color: _getStatusTextColor(voiceProvider).withOpacity(0.8),
+                color: _getStatusTextColor(voiceProvider).withAlpha(204),
                 fontStyle: FontStyle.italic,
               ),
               textAlign: TextAlign.center,
@@ -419,11 +419,11 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusM),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+          color: Theme.of(context).colorScheme.outline.withAlpha(77),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withAlpha(13),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -459,7 +459,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
               key: ValueKey(voiceProvider.currentWords),
               style: AppTheme.bodyLarge.copyWith(
                 color: voiceProvider.currentWords.isEmpty
-                    ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
+                    ? Theme.of(context).colorScheme.onSurface.withAlpha(128)
                     : Theme.of(context).colorScheme.onSurface,
                 height: 1.4,
               ),
@@ -554,7 +554,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
           '• "I completed [habit name]" • "I did [habit name] today"\n'
           '• "I skipped [habit name]" • "I missed [habit name]"',
           style: AppTheme.bodySmall.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+            color: Theme.of(context).colorScheme.onSurface.withAlpha(204),
             height: 1.3,
           ),
         ),
@@ -565,11 +565,11 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
   // Helper methods for status styling
   Color _getStatusCardColor(VoiceProvider voiceProvider) {
     if (voiceProvider.error != null) {
-      return AppTheme.errorColor.withOpacity(0.1);
+      return AppTheme.errorColor.withAlpha(26);
     } else if (voiceProvider.isListening) {
-      return AppTheme.successColor.withOpacity(0.1);
+      return AppTheme.successColor.withAlpha(26);
     } else if (voiceProvider.isProcessing) {
-      return AppTheme.infoColor.withOpacity(0.1);
+      return AppTheme.infoColor.withAlpha(26);
     } else {
       return Theme.of(context).colorScheme.surface;
     }
@@ -583,7 +583,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     } else if (voiceProvider.isProcessing) {
       return AppTheme.infoColor;
     } else {
-      return Theme.of(context).colorScheme.outline.withOpacity(0.3);
+      return Theme.of(context).colorScheme.outline.withAlpha(77);
     }
   }
 
@@ -607,7 +607,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     } else if (voiceProvider.isProcessing) {
       return AppTheme.infoColor;
     } else {
-      return Theme.of(context).colorScheme.onSurface.withOpacity(0.6);
+      return Theme.of(context).colorScheme.onSurface.withAlpha(153);
     }
   }
 
@@ -824,9 +824,7 @@ class VoiceCommandsHelpSheet extends StatelessWidget {
                 Icon(
                   isInfo ? Icons.lightbulb_outline : Icons.mic,
                   size: 16,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(context).colorScheme.onSurface.withAlpha(153),
                 ),
                 const SizedBox(width: AppTheme.spacingS),
                 Expanded(

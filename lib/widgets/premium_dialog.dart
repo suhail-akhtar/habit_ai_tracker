@@ -50,13 +50,14 @@ class _PremiumDialogState extends State<PremiumDialog>
   Widget build(BuildContext context) {
     // 🔧 FIXED: Get screen dimensions for better positioning
     final screenHeight = MediaQuery.of(context).size.height;
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final safeAreaPadding = MediaQuery.of(context).padding;
 
-    return WillPopScope(
-      onWillPop: () async {
-        widget.onClose?.call();
-        return true;
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          widget.onClose?.call();
+        }
       },
       child: AnimatedBuilder(
         animation: _animationController,
@@ -85,7 +86,7 @@ class _PremiumDialogState extends State<PremiumDialog>
                       end: Alignment.bottomCenter,
                       colors: [
                         Theme.of(context).colorScheme.primary,
-                        Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                        Theme.of(context).colorScheme.primary.withAlpha(204),
                       ],
                     ),
                   ),
@@ -118,7 +119,7 @@ class _PremiumDialogState extends State<PremiumDialog>
           Container(
             padding: const EdgeInsets.all(AppTheme.spacingM),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withAlpha(51),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -141,7 +142,7 @@ class _PremiumDialogState extends State<PremiumDialog>
             Text(
               'Unlock "${widget.feature}" and more!',
               style: AppTheme.bodyMedium.copyWith(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withAlpha(230),
                 fontSize: 14, // 🔧 FIXED: Smaller subtitle
               ),
               textAlign: TextAlign.center,
@@ -186,10 +187,10 @@ class _PremiumDialogState extends State<PremiumDialog>
                       AppTheme.spacingS,
                     ), // 🔧 FIXED: Reduced padding
                     decoration: BoxDecoration(
-                      color: AppTheme.warningColor.withOpacity(0.1),
+                      color: AppTheme.warningColor.withAlpha(26),
                       borderRadius: BorderRadius.circular(AppTheme.radiusM),
                       border: Border.all(
-                        color: AppTheme.warningColor.withOpacity(0.3),
+                        color: AppTheme.warningColor.withAlpha(77),
                       ),
                     ),
                     child: Row(
@@ -223,7 +224,7 @@ class _PremiumDialogState extends State<PremiumDialog>
                 AppTheme.spacingS,
               ), // 🔧 FIXED: Reduced padding
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                color: Theme.of(context).colorScheme.primary.withAlpha(26),
                 borderRadius: BorderRadius.circular(AppTheme.radiusM),
               ),
               child: Row(
@@ -379,11 +380,15 @@ class _PremiumDialogState extends State<PremiumDialog>
       // Simulate upgrade process
       await Future.delayed(const Duration(seconds: 2));
 
+      if (!mounted) return;
+
       // Close loading dialog
       Navigator.of(context).pop();
 
       // Update user provider
       await context.read<UserProvider>().upgradeToPremium();
+
+      if (!mounted) return;
 
       // Close premium dialog
       Navigator.of(context).pop();
@@ -401,9 +406,12 @@ class _PremiumDialogState extends State<PremiumDialog>
       widget.onUpgrade?.call();
     } catch (e) {
       // Close loading dialog if open
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
 
       // Show error message
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Upgrade failed: $e'),
@@ -474,7 +482,7 @@ class PricingOptionsDialog extends StatelessWidget {
         border: Border.all(
           color: isRecommended
               ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.outline.withOpacity(0.3),
+              : Theme.of(context).colorScheme.outline.withAlpha(77),
           width: isRecommended ? 2 : 1,
         ),
         borderRadius: BorderRadius.circular(AppTheme.radiusM),
@@ -520,7 +528,7 @@ class PricingOptionsDialog extends StatelessWidget {
                   style: AppTheme.bodyMedium.copyWith(
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.7),
+                    ).colorScheme.onSurface.withAlpha(179),
                   ),
                 ),
               ],

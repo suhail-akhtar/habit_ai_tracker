@@ -49,7 +49,9 @@ class _HabitCardState extends State<HabitCard>
     return Consumer<HabitProvider>(
       builder: (context, habitProvider, child) {
         _isCompleted = habitProvider.isHabitCompletedToday(widget.habit.id!);
-        _currentCount = habitProvider.getCompletionCountToday(widget.habit.id!); // 🎯 NEW
+        _currentCount = habitProvider.getCompletionCountToday(
+          widget.habit.id!,
+        ); // 🎯 NEW
 
         return AnimatedBuilder(
           animation: _scaleAnimation,
@@ -63,8 +65,8 @@ class _HabitCardState extends State<HabitCard>
                   boxShadow: [
                     BoxShadow(
                       color: _isCompleted
-                          ? widget.habit.color.withOpacity(0.3)
-                          : Colors.black.withOpacity(0.05),
+                          ? widget.habit.color.withAlpha(77)
+                          : Colors.black.withAlpha(13),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -97,13 +99,12 @@ class _HabitCardState extends State<HabitCard>
                                         ? TextDecoration.lineThrough
                                         : null,
                                     color: _isCompleted
-                                        ? Theme.of(context)
-                                            .colorScheme
-                                            .onSurface
-                                            .withOpacity(0.5)
-                                        : Theme.of(context)
-                                            .colorScheme
-                                            .onSurface,
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface.withAlpha(128)
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -115,8 +116,7 @@ class _HabitCardState extends State<HabitCard>
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: widget.habit.color
-                                            .withOpacity(0.15),
+                                        color: widget.habit.color.withAlpha(38),
                                         borderRadius: BorderRadius.circular(
                                           AppTheme.radiusS,
                                         ),
@@ -157,7 +157,7 @@ class _HabitCardState extends State<HabitCard>
       height: 50,
       decoration: BoxDecoration(
         color: _isCompleted
-            ? widget.habit.color.withOpacity(0.2)
+            ? widget.habit.color.withAlpha(51)
             : Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusM),
       ),
@@ -166,7 +166,7 @@ class _HabitCardState extends State<HabitCard>
           Helpers.getHabitIcon(widget.habit.iconName),
           color: _isCompleted
               ? widget.habit.color
-              : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              : Theme.of(context).colorScheme.onSurface.withAlpha(128),
           size: 26,
         ),
       ),
@@ -206,7 +206,7 @@ class _HabitCardState extends State<HabitCard>
     if (widget.habit.targetFrequency > 1) {
       final progress = _currentCount / widget.habit.targetFrequency;
       final isFull = _currentCount >= widget.habit.targetFrequency;
-      
+
       return Material(
         color: Colors.transparent,
         child: InkWell(
@@ -221,9 +221,13 @@ class _HabitCardState extends State<HabitCard>
                 child: CircularProgressIndicator(
                   value: progress > 1.0 ? 1.0 : progress,
                   strokeWidth: 4,
-                  backgroundColor: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.outline.withAlpha(51),
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    isFull ? widget.habit.color : widget.habit.color.withOpacity(0.8)
+                    isFull
+                        ? widget.habit.color
+                        : widget.habit.color.withAlpha(204),
                   ),
                 ),
               ),
@@ -243,7 +247,7 @@ class _HabitCardState extends State<HabitCard>
         ),
       );
     }
-    
+
     // Existing Simple Checkbox logic
     return Material(
       color: Colors.transparent,
@@ -263,28 +267,30 @@ class _HabitCardState extends State<HabitCard>
             border: Border.all(
               color: _isCompleted
                   ? widget.habit.color
-                  : Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                  : Theme.of(context).colorScheme.outline.withAlpha(51),
               width: 2,
             ),
             boxShadow: _isCompleted
                 ? [
                     BoxShadow(
-                      color: widget.habit.color.withOpacity(0.4),
+                      color: widget.habit.color.withAlpha(102),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
-                    )
+                    ),
                   ]
                 : [],
           ),
-          child: _isCompleted 
-            ? const Icon(Icons.check, color: Colors.white, size: 24)
-                .animate()
-                .scale(duration: 200.ms, curve: Curves.easeOutBack) 
-            : Icon(
-                Icons.check,
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                size: 24,
-              ),
+          child: _isCompleted
+              ? const Icon(
+                  Icons.check,
+                  color: Colors.white,
+                  size: 24,
+                ).animate().scale(duration: 200.ms, curve: Curves.easeOutBack)
+              : Icon(
+                  Icons.check,
+                  color: Theme.of(context).colorScheme.outline.withAlpha(128),
+                  size: 24,
+                ),
         ),
       ),
     );
@@ -298,14 +304,14 @@ class _HabitCardState extends State<HabitCard>
       // 🎯 NEW: Simplified Toggle Logic
       // If target > 1, we just ADD a log (we don't remove unless complex logic needed)
       // For now, simple "Add" is best for frequency.
-      
+
       if (widget.habit.targetFrequency > 1) {
-         // Multi-step habit: Always ADD until full (or even if full for over-achievement)
-         // To "undo", user might need to go to history, but for main card, just ADD.
-         await habitProvider.logHabitCompletion(
-            widget.habit.id!,
-            inputMethod: 'manual',
-         );
+        // Multi-step habit: Always ADD until full (or even if full for over-achievement)
+        // To "undo", user might need to go to history, but for main card, just ADD.
+        await habitProvider.logHabitCompletion(
+          widget.habit.id!,
+          inputMethod: 'manual',
+        );
       } else {
         // Binary Habit: Toggle as before
         if (_isCompleted) {
@@ -319,12 +325,13 @@ class _HabitCardState extends State<HabitCard>
           HapticFeedback.mediumImpact();
 
           await habitProvider.logHabitCompletion(
-              widget.habit.id!,
-              inputMethod: 'manual',
+            widget.habit.id!,
+            inputMethod: 'manual',
           );
         }
       }
     } catch (e) {
+      if (!mounted) return;
       Helpers.showSnackBar(
         context,
         'Failed to update: $e', // Show actual error
@@ -367,7 +374,7 @@ class _HabitDetailsSheet extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.outline.withAlpha(77),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -380,7 +387,7 @@ class _HabitDetailsSheet extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppTheme.spacingM),
                 decoration: BoxDecoration(
-                  color: habit.color.withOpacity(0.1),
+                  color: habit.color.withAlpha(26),
                   borderRadius: BorderRadius.circular(AppTheme.radiusM),
                 ),
                 child: Icon(
@@ -397,8 +404,8 @@ class _HabitDetailsSheet extends StatelessWidget {
                     Text(
                       habit.name,
                       style: AppTheme.headlineSmall.copyWith(
-                         fontWeight: FontWeight.bold
-                      )
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: AppTheme.spacingXS),
                     Text(
@@ -406,7 +413,7 @@ class _HabitDetailsSheet extends StatelessWidget {
                       style: AppTheme.bodyMedium.copyWith(
                         color: habit.color,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0
+                        letterSpacing: 1.0,
                       ),
                     ),
                   ],
@@ -417,7 +424,13 @@ class _HabitDetailsSheet extends StatelessWidget {
 
           if (habit.description != null && habit.description!.isNotEmpty) ...[
             const SizedBox(height: AppTheme.spacingL),
-            Text('ABOUT THIS HABIT', style: AppTheme.bodySmall.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.outline)),
+            Text(
+              'ABOUT THIS HABIT',
+              style: AppTheme.bodySmall.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
             const SizedBox(height: AppTheme.spacingS),
             Text(habit.description!, style: AppTheme.bodyLarge),
           ],
@@ -453,13 +466,13 @@ class _HabitDetailsSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppTheme.spacingM),
-          
+
           // Skip Button
           Consumer<HabitProvider>(
             builder: (context, provider, _) {
               final isSkipped = provider.isHabitSkippedToday(habit.id!);
               final isCompleted = provider.isHabitCompletedToday(habit.id!);
-              
+
               if (isCompleted) return const SizedBox.shrink();
 
               return SizedBox(
@@ -467,22 +480,32 @@ class _HabitDetailsSheet extends StatelessWidget {
                 child: TextButton.icon(
                   onPressed: isSkipped ? null : () => _skipHabit(context),
                   icon: Icon(
-                    isSkipped ? Icons.check_circle_outline : Icons.skip_next_rounded,
-                    color: isSkipped ? Colors.grey : Theme.of(context).colorScheme.primary,
+                    isSkipped
+                        ? Icons.check_circle_outline
+                        : Icons.skip_next_rounded,
+                    color: isSkipped
+                        ? Colors.grey
+                        : Theme.of(context).colorScheme.primary,
                   ),
                   label: Text(
-                    isSkipped ? 'Habit Skipped For Today' : 'Skip Today (Maintain Streak)',
+                    isSkipped
+                        ? 'Habit Skipped For Today'
+                        : 'Skip Today (Maintain Streak)',
                     style: TextStyle(
-                      color: isSkipped ? Colors.grey : Theme.of(context).colorScheme.primary,
+                      color: isSkipped
+                          ? Colors.grey
+                          : Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withAlpha(13),
                   ),
                 ),
               );
-            }
+            },
           ),
 
           // Bottom padding for safe area

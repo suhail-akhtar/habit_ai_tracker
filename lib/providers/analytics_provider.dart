@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../services/database_service.dart';
 import '../services/gemini_service.dart';
 import '../models/ai_insight.dart';
+import '../utils/app_log.dart';
 
 class AnalyticsProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -36,8 +37,10 @@ class AnalyticsProvider with ChangeNotifier {
   Future<void> _loadWeeklyInsight() async {
     try {
       // Check if we have a cached insight
-      final cachedInsight =
-          await _databaseService.getAIInsight('user', 'weekly_summary');
+      final cachedInsight = await _databaseService.getAIInsight(
+        'user',
+        'weekly_summary',
+      );
 
       if (cachedInsight != null && !cachedInsight.isExpired) {
         _weeklyInsight = cachedInsight.content;
@@ -59,7 +62,7 @@ class AnalyticsProvider with ChangeNotifier {
 
       await _databaseService.saveAIInsight(insight);
     } catch (e) {
-      print('Failed to load weekly insight: $e');
+      AppLog.e('Failed to load weekly insight', e);
       _weeklyInsight =
           'Keep up the great work! Every small step counts towards building lasting habits.';
     }

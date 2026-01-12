@@ -28,7 +28,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   String _selectedIcon = Constants.habitIcons.first;
   Color _selectedColor = Constants.habitColors.first;
   int _targetFrequency = 1;
-  
+
   // 🕒 NEW: Flexible Scheduling State
   String _frequencyType = 'daily';
   int _intervalMinutes = 60;
@@ -83,7 +83,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     _selectedIcon = habit.iconName;
     _selectedColor = habit.color;
     _targetFrequency = habit.targetFrequency;
-    
+
     // 🕒 NEW: Load Scheduling Data
     _frequencyType = habit.frequencyType;
     if (habit.intervalMinutes != null) {
@@ -91,18 +91,27 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     }
     if (habit.windowStartTime != null) {
       final split = habit.windowStartTime!.split(':');
-      _windowStartTime = TimeOfDay(hour: int.parse(split[0]), minute: int.parse(split[1]));
+      _windowStartTime = TimeOfDay(
+        hour: int.parse(split[0]),
+        minute: int.parse(split[1]),
+      );
     }
     if (habit.windowEndTime != null) {
       final split = habit.windowEndTime!.split(':');
-      _windowEndTime = TimeOfDay(hour: int.parse(split[0]), minute: int.parse(split[1]));
+      _windowEndTime = TimeOfDay(
+        hour: int.parse(split[0]),
+        minute: int.parse(split[1]),
+      );
     }
 
     // 🔔 NEW: Load Notification Data
     _isReminderEnabled = habit.isReminderEnabled;
     if (habit.reminderTime != null) {
       final split = habit.reminderTime!.split(':');
-      _reminderTime = TimeOfDay(hour: int.parse(split[0]), minute: int.parse(split[1]));
+      _reminderTime = TimeOfDay(
+        hour: int.parse(split[0]),
+        minute: int.parse(split[1]),
+      );
     }
   }
 
@@ -184,15 +193,15 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     IconData icon;
 
     if (!validation.isAllowed) {
-      backgroundColor = AppTheme.errorColor.withOpacity(0.1);
+      backgroundColor = AppTheme.errorColor.withAlpha(26);
       textColor = AppTheme.errorColor;
       icon = Icons.block;
     } else if (validation.type == PremiumValidationType.warning) {
-      backgroundColor = AppTheme.warningColor.withOpacity(0.1);
+      backgroundColor = AppTheme.warningColor.withAlpha(26);
       textColor = AppTheme.warningColor;
       icon = Icons.warning;
     } else {
-      backgroundColor = AppTheme.infoColor.withOpacity(0.1);
+      backgroundColor = AppTheme.infoColor.withAlpha(26);
       textColor = AppTheme.infoColor;
       icon = Icons.info;
     }
@@ -253,16 +262,16 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
             Container(
               padding: const EdgeInsets.all(AppTheme.spacingM),
               decoration: BoxDecoration(
-                color: _selectedColor.withOpacity(0.1),
+                color: _selectedColor.withAlpha(26),
                 borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                border: Border.all(color: _selectedColor.withOpacity(0.3)),
+                border: Border.all(color: _selectedColor.withAlpha(77)),
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(AppTheme.spacingS),
                     decoration: BoxDecoration(
-                      color: _selectedColor.withOpacity(0.2),
+                      color: _selectedColor.withAlpha(51),
                       borderRadius: BorderRadius.circular(AppTheme.radiusS),
                     ),
                     child: Icon(
@@ -284,7 +293,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                             color: _nameController.text.isEmpty
                                 ? Theme.of(
                                     context,
-                                  ).colorScheme.onSurface.withOpacity(0.5)
+                                  ).colorScheme.onSurface.withAlpha(128)
                                 : Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
@@ -422,7 +431,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                     padding: const EdgeInsets.all(AppTheme.spacingS),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? _selectedColor.withOpacity(0.2)
+                          ? _selectedColor.withAlpha(51)
                           : Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(AppTheme.radiusS),
                       border: Border.all(
@@ -430,7 +439,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                             ? _selectedColor
                             : Theme.of(
                                 context,
-                              ).colorScheme.outline.withOpacity(0.3),
+                              ).colorScheme.outline.withAlpha(77),
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -513,12 +522,14 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
           children: [
             Text('Schedule & Frequency', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
-            
+
             // Scheduling Type Selection
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withAlpha(77),
                 borderRadius: BorderRadius.circular(AppTheme.radiusM),
               ),
               child: Row(
@@ -529,8 +540,8 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: _frequencyType == 'daily' 
-                              ? Theme.of(context).colorScheme.primary 
+                          color: _frequencyType == 'daily'
+                              ? Theme.of(context).colorScheme.primary
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(AppTheme.radiusM),
                         ),
@@ -538,8 +549,12 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                           child: Text(
                             'Simple Goal',
                             style: TextStyle(
-                              color: _frequencyType == 'daily' ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                              fontWeight: _frequencyType == 'daily' ? FontWeight.bold : FontWeight.normal,
+                              color: _frequencyType == 'daily'
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: _frequencyType == 'daily'
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
                         ),
@@ -557,8 +572,8 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: _frequencyType == 'interval' 
-                              ? Theme.of(context).colorScheme.primary 
+                          color: _frequencyType == 'interval'
+                              ? Theme.of(context).colorScheme.primary
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(AppTheme.radiusM),
                         ),
@@ -566,8 +581,12 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                           child: Text(
                             'Recurring',
                             style: TextStyle(
-                              color: _frequencyType == 'interval' ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                              fontWeight: _frequencyType == 'interval' ? FontWeight.bold : FontWeight.normal,
+                              color: _frequencyType == 'interval'
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: _frequencyType == 'interval'
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
                         ),
@@ -579,7 +598,10 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
             ),
             const SizedBox(height: AppTheme.spacingL),
 
-            if (_frequencyType == 'daily') _buildDailyControls() else _buildIntervalControls(),
+            if (_frequencyType == 'daily')
+              _buildDailyControls()
+            else
+              _buildIntervalControls(),
           ],
         ),
       ),
@@ -596,8 +618,8 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
             Row(
               children: [
                 IconButton.filledTonal(
-                  onPressed: _targetFrequency > 1 
-                      ? () => setState(() => _targetFrequency--) 
+                  onPressed: _targetFrequency > 1
+                      ? () => setState(() => _targetFrequency--)
                       : null,
                   icon: const Icon(Icons.remove),
                 ),
@@ -606,13 +628,15 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                   child: Center(
                     child: Text(
                       '$_targetFrequency',
-                      style: AppTheme.titleLarge.copyWith(fontWeight: FontWeight.bold),
+                      style: AppTheme.titleLarge.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
                 IconButton.filledTonal(
-                  onPressed: _targetFrequency < 50 
-                      ? () => setState(() => _targetFrequency++) 
+                  onPressed: _targetFrequency < 50
+                      ? () => setState(() => _targetFrequency++)
                       : null,
                   icon: const Icon(Icons.add),
                 ),
@@ -641,22 +665,24 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  border: Border.all(color: Colors.grey.withAlpha(77)),
                   borderRadius: BorderRadius.circular(AppTheme.radiusM),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<int>(
-                    value: _intervalMinutes < 60 ? _intervalMinutes : (_intervalMinutes % 60 == 0 ? _intervalMinutes : 60),
+                    value: _intervalMinutes < 60
+                        ? _intervalMinutes
+                        : (_intervalMinutes % 60 == 0 ? _intervalMinutes : 60),
                     isExpanded: true,
                     items: const [
-                       DropdownMenuItem(value: 15, child: Text('15 Minutes')),
-                       DropdownMenuItem(value: 30, child: Text('30 Minutes')),
-                       DropdownMenuItem(value: 45, child: Text('45 Minutes')),
-                       DropdownMenuItem(value: 60, child: Text('1 Hour')),
-                       DropdownMenuItem(value: 90, child: Text('1.5 Hours')),
-                       DropdownMenuItem(value: 120, child: Text('2 Hours')),
-                       DropdownMenuItem(value: 180, child: Text('3 Hours')),
-                       DropdownMenuItem(value: 240, child: Text('4 Hours')),
+                      DropdownMenuItem(value: 15, child: Text('15 Minutes')),
+                      DropdownMenuItem(value: 30, child: Text('30 Minutes')),
+                      DropdownMenuItem(value: 45, child: Text('45 Minutes')),
+                      DropdownMenuItem(value: 60, child: Text('1 Hour')),
+                      DropdownMenuItem(value: 90, child: Text('1.5 Hours')),
+                      DropdownMenuItem(value: 120, child: Text('2 Hours')),
+                      DropdownMenuItem(value: 180, child: Text('3 Hours')),
+                      DropdownMenuItem(value: 240, child: Text('4 Hours')),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -673,7 +699,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
           ],
         ),
         const SizedBox(height: AppTheme.spacingL),
-        
+
         Text('Active Hours:', style: AppTheme.bodyMedium),
         const SizedBox(height: AppTheme.spacingS),
         Row(
@@ -698,7 +724,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                 time: _windowEndTime,
                 label: 'End',
                 onPick: (t) {
-                   setState(() {
+                  setState(() {
                     _windowEndTime = t;
                     _updateCalculatedFrequency();
                   });
@@ -707,17 +733,22 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
             ),
           ],
         ),
-        
+
         const SizedBox(height: AppTheme.spacingL),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
+            color: Theme.of(
+              context,
+            ).colorScheme.primaryContainer.withAlpha(128),
             borderRadius: BorderRadius.circular(AppTheme.radiusM),
           ),
           child: Row(
             children: [
-              Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                Icons.info_outline,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -736,26 +767,32 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   }
 
   Widget _buildTimePickerButton({
-    required TimeOfDay time, 
-    required String label, 
-    required Function(TimeOfDay) onPick
+    required TimeOfDay time,
+    required String label,
+    required Function(TimeOfDay) onPick,
   }) {
     return InkWell(
       onTap: () async {
-        final picked = await showTimePicker(context: context, initialTime: time);
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: time,
+        );
         if (picked != null) onPick(picked);
       },
       borderRadius: BorderRadius.circular(AppTheme.radiusM),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+          border: Border.all(color: Colors.grey.withAlpha(77)),
           borderRadius: BorderRadius.circular(AppTheme.radiusM),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+            ),
             const SizedBox(height: 4),
             Text(
               time.format(context),
@@ -770,18 +807,18 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   void _updateCalculatedFrequency() {
     int startMins = _windowStartTime.hour * 60 + _windowStartTime.minute;
     int endMins = _windowEndTime.hour * 60 + _windowEndTime.minute;
-    
+
     // Handle overnight schedules (e.g. 23:00 to 07:00)
     int diff = endMins - startMins;
     if (diff <= 0) diff += 24 * 60;
-    
+
     if (_intervalMinutes > 0) {
       int count = (diff / _intervalMinutes).floor();
       // Ensure at least 1
-      if (count < 1) count = 1; 
+      if (count < 1) count = 1;
       // Cap at 50 for safety
       if (count > 50) count = 50;
-      
+
       setState(() {
         _targetFrequency = count;
       });
@@ -821,55 +858,58 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                 ),
               ],
             ),
-            
+
             if (_isReminderEnabled) ...[
               const Divider(height: 30),
               if (_frequencyType == 'daily') ...[
-                 Text('Reminder Time', style: AppTheme.bodyMedium),
-                 const SizedBox(height: AppTheme.spacingS),
-                 _buildTimePickerButton(
-                   time: _reminderTime, 
-                   label: 'Notify at', 
-                   onPick: (t) => setState(() => _reminderTime = t),
-                 ),
-                 const SizedBox(height: AppTheme.spacingS),
-                 Text(
-                   'You will receive a notification at this time every day.',
-                   style: AppTheme.bodySmall.copyWith(color: Colors.grey),
-                 ),
+                Text('Reminder Time', style: AppTheme.bodyMedium),
+                const SizedBox(height: AppTheme.spacingS),
+                _buildTimePickerButton(
+                  time: _reminderTime,
+                  label: 'Notify at',
+                  onPick: (t) => setState(() => _reminderTime = t),
+                ),
+                const SizedBox(height: AppTheme.spacingS),
+                Text(
+                  'You will receive a notification at this time every day.',
+                  style: AppTheme.bodySmall.copyWith(color: Colors.grey),
+                ),
               ] else ...[
-                 Row(
-                   children: [
-                     Icon(Icons.access_alarm, color: Theme.of(context).colorScheme.primary),
-                     const SizedBox(width: 12),
-                     Expanded(
-                       child: Text(
-                         'Notifications will be scheduled for every interval between ${_windowStartTime.format(context)} and ${_windowEndTime.format(context)}.',
-                         style: AppTheme.bodyMedium,
-                       ),
-                     ),
-                   ],
-                 ),
-                 const SizedBox(height: AppTheme.spacingS),
-                 Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.access_alarm,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                         const Icon(Icons.touch_app, size: 16, color: Colors.blue),
-                         const SizedBox(width: 8),
-                         Text(
-                           'Includes "Mark Done" action',
-                           style: TextStyle(fontSize: 12, color: Colors.blue[800]),
-                         ),
-                      ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Notifications will be scheduled for every interval between ${_windowStartTime.format(context)} and ${_windowEndTime.format(context)}.',
+                        style: AppTheme.bodyMedium,
+                      ),
                     ),
-                 ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spacingS),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withAlpha(26),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withAlpha(77)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.touch_app, size: 16, color: Colors.blue),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Includes "Mark Done" action',
+                        style: TextStyle(fontSize: 12, color: Colors.blue[800]),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ],
           ],
@@ -928,7 +968,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
       // Allow a brief moment for keyboard animation to start
       await Future.delayed(const Duration(milliseconds: 50));
     }
-    
+
     if (!mounted) return;
 
     try {
@@ -980,19 +1020,19 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         // 🕒 NEW: Save Scheduling Data
         frequencyType: _frequencyType,
         intervalMinutes: _frequencyType == 'interval' ? _intervalMinutes : null,
-        windowStartTime: _frequencyType == 'interval' 
-            ? '${_windowStartTime.hour}:${_windowStartTime.minute.toString().padLeft(2, '0')}' 
+        windowStartTime: _frequencyType == 'interval'
+            ? '${_windowStartTime.hour}:${_windowStartTime.minute.toString().padLeft(2, '0')}'
             : null,
-        windowEndTime: _frequencyType == 'interval' 
-            ? '${_windowEndTime.hour}:${_windowEndTime.minute.toString().padLeft(2, '0')}' 
+        windowEndTime: _frequencyType == 'interval'
+            ? '${_windowEndTime.hour}:${_windowEndTime.minute.toString().padLeft(2, '0')}'
             : null,
-        
+
         // 🔔 NEW: Save Notification Data
         isReminderEnabled: _isReminderEnabled,
         reminderTime: _isReminderEnabled && _frequencyType == 'daily'
             ? '${_reminderTime.hour}:${_reminderTime.minute.toString().padLeft(2, '0')}'
             : null,
-        
+
         createdAt: widget.habitToEdit?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -1018,9 +1058,15 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
           // Update user provider habit count
           await userProvider.incrementHabitCount();
 
+          if (!mounted) return;
+
           // � Schedule Reminders (Get newly created habit with ID)
           if (habitProvider.habits.isNotEmpty) {
-             await NotificationService().scheduleHabitReminders(habitProvider.habits.first);
+            await NotificationService().scheduleHabitReminders(
+              habitProvider.habits.first,
+            );
+
+            if (!mounted) return;
           }
 
           // �🔧 FIXED: Show success message and properly navigate back
@@ -1078,9 +1124,12 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     });
 
     try {
-      await context.read<HabitProvider>().deleteHabit(widget.habitToEdit!.id!);
+      final habitProvider = context.read<HabitProvider>();
+      final userProvider = context.read<UserProvider>();
+
+      await habitProvider.deleteHabit(widget.habitToEdit!.id!);
       // Update user provider habit count
-      await context.read<UserProvider>().decrementHabitCount();
+      await userProvider.decrementHabitCount();
 
       if (mounted) {
         Helpers.showSnackBar(context, 'Habit deleted successfully');

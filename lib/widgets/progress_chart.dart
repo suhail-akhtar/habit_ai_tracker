@@ -53,10 +53,7 @@ class _ProgressChartState extends State<ProgressChart>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.title,
-              style: AppTheme.titleMedium,
-            ),
+            Text(widget.title, style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             SizedBox(
               height: 200,
@@ -94,13 +91,13 @@ class _ProgressChartState extends State<ProgressChart>
           verticalInterval: 1,
           getDrawingHorizontalLine: (value) {
             return FlLine(
-              color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.outline.withAlpha(77),
               strokeWidth: 1,
             );
           },
           getDrawingVerticalLine: (value) {
             return FlLine(
-              color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.outline.withAlpha(77),
               strokeWidth: 1,
             );
           },
@@ -127,10 +124,9 @@ class _ProgressChartState extends State<ProgressChart>
                     child: Text(
                       '${date.day}',
                       style: AppTheme.bodySmall.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.7),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withAlpha(179),
                       ),
                     ),
                   );
@@ -147,10 +143,9 @@ class _ProgressChartState extends State<ProgressChart>
                 return Text(
                   value.toInt().toString(),
                   style: AppTheme.bodySmall.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withAlpha(179),
                   ),
                 );
               },
@@ -161,7 +156,7 @@ class _ProgressChartState extends State<ProgressChart>
         borderData: FlBorderData(
           show: true,
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+            color: Theme.of(context).colorScheme.outline.withAlpha(77),
           ),
         ),
         minX: 0,
@@ -183,7 +178,7 @@ class _ProgressChartState extends State<ProgressChart>
               colors: [
                 widget.primaryColor ?? Theme.of(context).colorScheme.primary,
                 (widget.primaryColor ?? Theme.of(context).colorScheme.primary)
-                    .withOpacity(0.3),
+                    .withAlpha(77),
               ],
             ),
             barWidth: 3,
@@ -193,7 +188,8 @@ class _ProgressChartState extends State<ProgressChart>
               getDotPainter: (spot, percent, barData, index) {
                 return FlDotCirclePainter(
                   radius: 4,
-                  color: widget.primaryColor ??
+                  color:
+                      widget.primaryColor ??
                       Theme.of(context).colorScheme.primary,
                   strokeWidth: 2,
                   strokeColor: Colors.white,
@@ -205,9 +201,9 @@ class _ProgressChartState extends State<ProgressChart>
               gradient: LinearGradient(
                 colors: [
                   (widget.primaryColor ?? Theme.of(context).colorScheme.primary)
-                      .withOpacity(0.3),
+                      .withAlpha(77),
                   (widget.primaryColor ?? Theme.of(context).colorScheme.primary)
-                      .withOpacity(0.1),
+                      .withAlpha(26),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -248,10 +244,9 @@ class _ProgressChartState extends State<ProgressChart>
                     child: Text(
                       '${date.day}',
                       style: AppTheme.bodySmall.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.7),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withAlpha(179),
                       ),
                     ),
                   );
@@ -268,10 +263,9 @@ class _ProgressChartState extends State<ProgressChart>
                 return Text(
                   value.toInt().toString(),
                   style: AppTheme.bodySmall.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withAlpha(179),
                   ),
                 );
               },
@@ -284,7 +278,7 @@ class _ProgressChartState extends State<ProgressChart>
           horizontalInterval: 1,
           getDrawingHorizontalLine: (value) {
             return FlLine(
-              color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.outline.withAlpha(77),
               strokeWidth: 1,
             );
           },
@@ -292,7 +286,7 @@ class _ProgressChartState extends State<ProgressChart>
         borderData: FlBorderData(
           show: true,
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+            color: Theme.of(context).colorScheme.outline.withAlpha(77),
           ),
         ),
         barGroups: widget.data.asMap().entries.map((entry) {
@@ -302,9 +296,11 @@ class _ProgressChartState extends State<ProgressChart>
             x: index,
             barRods: [
               BarChartRodData(
-                toY: (data['completedHabits'] as num).toDouble() *
+                toY:
+                    (data['completedHabits'] as num).toDouble() *
                     _animation.value,
-                color: widget.primaryColor ??
+                color:
+                    widget.primaryColor ??
                     Theme.of(context).colorScheme.primary,
                 width: 16,
                 borderRadius: const BorderRadius.vertical(
@@ -362,13 +358,13 @@ class _ProgressChartState extends State<ProgressChart>
           Icon(
             Icons.bar_chart,
             size: 48,
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.outline.withAlpha(128),
           ),
           const SizedBox(height: AppTheme.spacingS),
           Text(
             'No data available',
             style: AppTheme.bodyMedium.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
             ),
           ),
         ],
@@ -406,8 +402,4 @@ class _ProgressChartState extends State<ProgressChart>
   }
 }
 
-enum ChartType {
-  line,
-  bar,
-  pie,
-}
+enum ChartType { line, bar, pie }

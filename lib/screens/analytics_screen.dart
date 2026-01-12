@@ -114,12 +114,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               colorMode: ColorMode.opacity,
               showText: false,
               scrollable: true,
-              colorsets: {
-                1: Theme.of(context).colorScheme.primary,
-              },
+              colorsets: {1: Theme.of(context).colorScheme.primary},
               onClick: (value) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Activity on ${value.day}/${value.month}: ${provider.heatmapData[value] ?? 0} habits'))
+                  SnackBar(
+                    content: Text(
+                      'Activity on ${value.day}/${value.month}: ${provider.heatmapData[value] ?? 0} habits',
+                    ),
+                  ),
                 );
               },
             ),
@@ -219,7 +221,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingM),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withAlpha(26),
         borderRadius: BorderRadius.circular(AppTheme.radiusM),
       ),
       child: Column(
@@ -237,7 +239,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           Text(
             title,
             style: AppTheme.bodySmall.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
             ),
             textAlign: TextAlign.center,
           ),
@@ -296,7 +298,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               Container(
                 padding: const EdgeInsets.all(AppTheme.spacingM),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+                  color: Theme.of(context).colorScheme.outline.withAlpha(26),
                   borderRadius: BorderRadius.circular(AppTheme.radiusM),
                 ),
                 child: Column(
@@ -312,7 +314,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                       style: AppTheme.bodyMedium.copyWith(
                         color: Theme.of(
                           context,
-                        ).colorScheme.onSurface.withOpacity(0.7),
+                        ).colorScheme.onSurface.withAlpha(179),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -339,7 +341,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               Container(
                 padding: const EdgeInsets.all(AppTheme.spacingXS),
                 decoration: BoxDecoration(
-                  color: habit.color.withOpacity(0.1),
+                  color: habit.color.withAlpha(26),
                   borderRadius: BorderRadius.circular(AppTheme.radiusS),
                 ),
                 child: Icon(
@@ -392,7 +394,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
           padding: const EdgeInsets.all(AppTheme.spacingS),
           decoration: BoxDecoration(
-            color: habit.color.withOpacity(0.1),
+            color: habit.color.withAlpha(26),
             borderRadius: BorderRadius.circular(AppTheme.radiusS),
           ),
           child: Row(
@@ -452,8 +454,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                    Theme.of(context).colorScheme.primary.withAlpha(26),
+                    Theme.of(context).colorScheme.secondary.withAlpha(26),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(AppTheme.radiusM),
@@ -505,9 +507,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               Text(
                 'Get personalized recommendations based on your habit patterns',
                 style: AppTheme.bodyMedium.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.7),
+                  color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -591,7 +591,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               Container(
                 padding: const EdgeInsets.all(AppTheme.spacingM),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+                  color: Theme.of(context).colorScheme.outline.withAlpha(26),
                   borderRadius: BorderRadius.circular(AppTheme.radiusM),
                 ),
                 child: Row(
@@ -607,7 +607,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                         style: AppTheme.bodyMedium.copyWith(
                           color: Theme.of(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.7),
+                          ).colorScheme.onSurface.withAlpha(179),
                         ),
                       ),
                     ),
@@ -667,7 +667,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
       padding: const EdgeInsets.all(AppTheme.spacingS),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withAlpha(26),
         borderRadius: BorderRadius.circular(AppTheme.radiusS),
       ),
       child: Row(
@@ -689,7 +689,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   style: AppTheme.bodySmall.copyWith(
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.7),
+                    ).colorScheme.onSurface.withAlpha(179),
                   ),
                 ),
               ],
@@ -736,7 +736,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
       padding: const EdgeInsets.all(AppTheme.spacingS),
       decoration: BoxDecoration(
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withAlpha(77)),
         borderRadius: BorderRadius.circular(AppTheme.radiusS),
       ),
       child: Row(
@@ -758,7 +758,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   style: AppTheme.bodySmall.copyWith(
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.7),
+                    ).colorScheme.onSurface.withAlpha(179),
                   ),
                 ),
               ],

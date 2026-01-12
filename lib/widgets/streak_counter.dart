@@ -42,21 +42,13 @@ class _StreakCounterState extends State<StreakCounter>
       vsync: this,
     );
 
-    _pulseAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.2,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.elasticOut,
-    ));
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.elasticOut),
+    );
 
-    _countAnimation = IntTween(
-      begin: 0,
-      end: widget.streak,
-    ).animate(CurvedAnimation(
-      parent: _countController,
-      curve: Curves.easeOutCubic,
-    ));
+    _countAnimation = IntTween(begin: 0, end: widget.streak).animate(
+      CurvedAnimation(parent: _countController, curve: Curves.easeOutCubic),
+    );
 
     if (widget.showAnimation) {
       _countController.forward();
@@ -76,13 +68,13 @@ class _StreakCounterState extends State<StreakCounter>
       }
 
       // Update count animation
-      _countAnimation = IntTween(
-        begin: _previousStreak,
-        end: widget.streak,
-      ).animate(CurvedAnimation(
-        parent: _countController,
-        curve: Curves.easeOutCubic,
-      ));
+      _countAnimation = IntTween(begin: _previousStreak, end: widget.streak)
+          .animate(
+            CurvedAnimation(
+              parent: _countController,
+              curve: Curves.easeOutCubic,
+            ),
+          );
 
       _countController.reset();
       _countController.forward();
@@ -113,8 +105,7 @@ class _StreakCounterState extends State<StreakCounter>
                 borderRadius: BorderRadius.circular(AppTheme.radiusL),
                 boxShadow: [
                   BoxShadow(
-                    color:
-                        Helpers.getStreakColor(widget.streak).withOpacity(0.3),
+                    color: Helpers.getStreakColor(widget.streak).withAlpha(77),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -147,14 +138,14 @@ class _StreakCounterState extends State<StreakCounter>
                   Text(
                     widget.streak == 1 ? 'Day Streak' : 'Days Streak',
                     style: AppTheme.titleMedium.copyWith(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withAlpha(230),
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingS),
                   Text(
                     _getStreakMessage(),
                     style: AppTheme.bodySmall.copyWith(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withAlpha(204),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -172,10 +163,7 @@ class _StreakCounterState extends State<StreakCounter>
     return LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [
-        color,
-        color.withOpacity(0.8),
-      ],
+      colors: [color, color.withAlpha(204)],
     );
   }
 
@@ -198,11 +186,7 @@ class MiniStreakCounter extends StatelessWidget {
   final int streak;
   final Color? color;
 
-  const MiniStreakCounter({
-    super.key,
-    required this.streak,
-    this.color,
-  });
+  const MiniStreakCounter({super.key, required this.streak, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -214,21 +198,14 @@ class MiniStreakCounter extends StatelessWidget {
         vertical: AppTheme.spacingXS,
       ),
       decoration: BoxDecoration(
-        color: streakColor.withOpacity(0.1),
+        color: streakColor.withAlpha(26),
         borderRadius: BorderRadius.circular(AppTheme.radiusS),
-        border: Border.all(
-          color: streakColor.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: streakColor.withAlpha(77), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.local_fire_department,
-            size: 12,
-            color: streakColor,
-          ),
+          Icon(Icons.local_fire_department, size: 12, color: streakColor),
           const SizedBox(width: AppTheme.spacingXS),
           Text(
             streak.toString(),

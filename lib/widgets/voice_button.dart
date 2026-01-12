@@ -135,7 +135,7 @@ class _VoiceButtonState extends State<VoiceButton>
               ? [AppTheme.successColor, const Color(0xFF34D399)]
               : [
                   Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.tertiary
+                  Theme.of(context).colorScheme.tertiary,
                 ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -143,10 +143,11 @@ class _VoiceButtonState extends State<VoiceButton>
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: (voiceProvider.isListening
-                    ? AppTheme.successColor
-                    : Theme.of(context).colorScheme.primary)
-                .withOpacity(0.4),
+            color:
+                (voiceProvider.isListening
+                        ? AppTheme.successColor
+                        : Theme.of(context).colorScheme.primary)
+                    .withAlpha(102),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -182,7 +183,7 @@ class _VoiceButtonState extends State<VoiceButton>
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: _getButtonColor(context, voiceProvider).withOpacity(0.3),
+            color: _getButtonColor(context, voiceProvider).withAlpha(77),
             blurRadius: voiceProvider.isListening ? 12 : 6,
             offset: const Offset(0, 2),
           ),
@@ -302,7 +303,9 @@ class _RipplePainter extends CustomPainter {
 
       if (rippleRadius > 0 && opacity > 0) {
         final paint = Paint()
-          ..color = color.withOpacity(opacity)
+          ..color = color.withAlpha(
+            ((opacity * 255).round()).clamp(0, 255).toInt(),
+          )
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2;
 

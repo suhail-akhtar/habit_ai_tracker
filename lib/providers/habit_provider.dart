@@ -4,6 +4,7 @@ import '../models/habit_log.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/widget_service.dart';
+import '../utils/app_log.dart';
 import '../utils/constants.dart';
 
 class HabitProvider with ChangeNotifier {
@@ -25,7 +26,7 @@ class HabitProvider with ChangeNotifier {
     final activeHabits = _habits.where((h) => h.isActive).length;
 
     if (kDebugMode && activeHabits != _habits.length) {
-      print(
+      AppLog.d(
         '🔍 HabitProvider: Active habits: $activeHabits / Total: ${_habits.length}',
       );
     }
@@ -47,15 +48,13 @@ class HabitProvider with ChangeNotifier {
   Future<void> _updateWidgets() async {
     try {
       final active = habitCount;
-      final completed = _todayLogs.length; // Approximate, assumes 1 log per habit per day max for simplicity or filter unique habit_ids
-      
       // Calculate real completed count (unique habits completed today)
       final completedUnique = _todayLogs.map((l) => l.habitId).toSet().length;
 
       await WidgetService.updateHabitStatus(completedUnique, active);
       await WidgetService.updateStreak(longestStreak);
     } catch (e) {
-      print('Widget update failed: $e');
+      AppLog.e('Widget update failed', e);
     }
   }
 
@@ -67,7 +66,7 @@ class HabitProvider with ChangeNotifier {
       _updateWidgets(); // Update widgets after loading
 
       if (kDebugMode) {
-        print('📱 HabitProvider: Loaded ${_habits.length} habits');
+        AppLog.d('📱 HabitProvider: Loaded ${_habits.length} habits');
       }
 
       _clearError();
@@ -99,7 +98,7 @@ class HabitProvider with ChangeNotifier {
       if (!isPremium && currentActiveCount >= Constants.freeHabitLimit) {
         _setError(Constants.habitLimitMessage);
         if (kDebugMode) {
-          print(
+          AppLog.d(
             '🚫 HabitProvider: Rejected habit creation - memory check ($currentActiveCount/${Constants.freeHabitLimit})',
           );
         }
@@ -111,7 +110,7 @@ class HabitProvider with ChangeNotifier {
       if (!isPremium && databaseHabits.length >= Constants.freeHabitLimit) {
         _setError(Constants.habitLimitMessage);
         if (kDebugMode) {
-          print(
+          AppLog.d(
             '🚫 HabitProvider: Rejected habit creation - database check (${databaseHabits.length}/${Constants.freeHabitLimit})',
           );
         }
@@ -134,7 +133,7 @@ class HabitProvider with ChangeNotifier {
         await _databaseService.deleteHabit(id);
         _setError('Safety limit exceeded. Habit creation cancelled.');
         if (kDebugMode) {
-          print(
+          AppLog.d(
             '🚨 HabitProvider: Emergency rollback - post-creation limit exceeded',
           );
         }
@@ -146,7 +145,7 @@ class HabitProvider with ChangeNotifier {
       _clearError();
 
       if (kDebugMode) {
-        print(
+        AppLog.d(
           '✅ HabitProvider: Successfully created habit "${newHabit.name}" ($habitCount/${isPremium ? "∞" : Constants.freeHabitLimit})',
         );
       }
@@ -156,7 +155,7 @@ class HabitProvider with ChangeNotifier {
     } catch (e) {
       _setError('Failed to add habit: $e');
       if (kDebugMode) {
-        print('❌ HabitProvider: Habit creation failed: $e');
+        AppLog.e('❌ HabitProvider: Habit creation failed', e);
       }
       return false;
     } finally {
@@ -175,7 +174,7 @@ class HabitProvider with ChangeNotifier {
         _habits[index] = updatedHabit;
 
         if (kDebugMode) {
-          print('📝 HabitProvider: Updated habit "${updatedHabit.name}"');
+          AppLog.d('📝 HabitProvider: Updated habit "${updatedHabit.name}"');
         }
 
         notifyListeners();
@@ -199,7 +198,7 @@ class HabitProvider with ChangeNotifier {
       _habits.removeWhere((habit) => habit.id == habitId);
 
       if (kDebugMode) {
-        print(
+        AppLog.d(
           '🗑️ HabitProvider: Deleted habit "${habitToDelete.name}" ($habitCount remaining)',
         );
       }
@@ -254,7 +253,7 @@ class HabitProvider with ChangeNotifier {
       }
 
       if (kDebugMode) {
-        print(
+        AppLog.d(
           '✅ HabitProvider: Logged completion for "${habit.name}" via $inputMethod',
         );
       }
@@ -264,7 +263,7 @@ class HabitProvider with ChangeNotifier {
     } catch (e) {
       _setError('Failed to log habit: $e');
       if (kDebugMode) {
-        print('❌ HabitProvider: Failed to log habit completion: $e');
+        AppLog.e('❌ HabitProvider: Failed to log habit completion', e);
       }
     }
   }
@@ -288,7 +287,7 @@ class HabitProvider with ChangeNotifier {
       await _loadTodayLogs();
 
       if (kDebugMode) {
-        print('⏭️ HabitProvider: Logged skip for "${habit.name}"');
+        AppLog.d('⏭️ HabitProvider: Logged skip for "${habit.name}"');
       }
 
       _clearError();
@@ -301,35 +300,39 @@ class HabitProvider with ChangeNotifier {
   // 🔧 ENHANCED: Validate habit completion with active status check
   bool isHabitCompletedToday(int habitId) {
     final count = getCompletionCountToday(habitId);
-    
+
     // Ensure habit is still active and get target
     final habit = _habits.firstWhere(
       (h) => h.id == habitId,
       orElse: () => throw Exception('Habit not found'),
     );
-    
-    // 🔔 CHANGED: Skips now count as "attempts" or "slots used", 
+
+    // 🔔 CHANGED: Skips now count as "attempts" or "slots used",
     // but don't automatically mark the WHOLE day as finished unless target met.
     // If you skip once in a 5x habit, you have 4x left.
     // Logic: (Completions + Skips) >= Target
-    
+
     final skips = getSkipCountToday(habitId);
-    
-    // Special case: If user explicitly marked "Day Skipped" (future feature), 
+
+    // Special case: If user explicitly marked "Day Skipped" (future feature),
     // we could handle it here. For now, we trust the count.
-    
+
     return (count + skips) >= habit.targetFrequency;
   }
-  
+
   // 🔔 NEW: Helper to count skips
   int getSkipCountToday(int habitId) {
-     final today = DateTime.now();
-     final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-     return _todayLogs.where((log) => 
-        log.habitId == habitId && 
-        log.completedAt.toIso8601String().startsWith(todayStr) && 
-        log.status == 'skipped'
-     ).length;
+    final today = DateTime.now();
+    final todayStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    return _todayLogs
+        .where(
+          (log) =>
+              log.habitId == habitId &&
+              log.completedAt.toIso8601String().startsWith(todayStr) &&
+              log.status == 'skipped',
+        )
+        .length;
   }
 
   int getCompletionCountToday(int habitId) {
@@ -337,12 +340,14 @@ class HabitProvider with ChangeNotifier {
     final todayStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
-    return _todayLogs.where(
-      (log) =>
-          log.habitId == habitId &&
-          log.completedAt.toIso8601String().startsWith(todayStr) &&
-          log.status == 'completed'
-    ).length;
+    return _todayLogs
+        .where(
+          (log) =>
+              log.habitId == habitId &&
+              log.completedAt.toIso8601String().startsWith(todayStr) &&
+              log.status == 'completed',
+        )
+        .length;
   }
 
   bool isHabitSkippedToday(int habitId) {
@@ -400,7 +405,7 @@ class HabitProvider with ChangeNotifier {
       await _loadTodayLogs();
 
       if (kDebugMode) {
-        print(
+        AppLog.d(
           '🔄 HabitProvider: Force reloaded ${_habits.length} habits from database',
         );
       }

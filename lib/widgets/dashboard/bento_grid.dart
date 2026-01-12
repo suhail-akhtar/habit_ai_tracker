@@ -15,9 +15,13 @@ class BentoGrid extends StatelessWidget {
     return Consumer<HabitProvider>(
       builder: (context, habitProvider, child) {
         final habits = habitProvider.habits;
-        final completedToday = habitProvider.todayHabits.where((h) => habitProvider.isHabitCompletedToday(h.id!)).length;
+        final completedToday = habitProvider.todayHabits
+            .where((h) => habitProvider.isHabitCompletedToday(h.id!))
+            .length;
         final totalActive = habits.where((h) => h.isActive).length;
-        final completionRate = totalActive > 0 ? completedToday / totalActive : 0.0;
+        final completionRate = totalActive > 0
+            ? completedToday / totalActive
+            : 0.0;
         final streak = habitProvider.longestStreak;
 
         return StaggeredGrid.count(
@@ -29,21 +33,31 @@ class BentoGrid extends StatelessWidget {
             StaggeredGridTile.count(
               crossAxisCellCount: 2,
               mainAxisCellCount: 1,
-              child: _buildStreakTile(context, streak).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0),
+              child: _buildStreakTile(
+                context,
+                streak,
+              ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0),
             ),
-            
+
             // Tile 2: Daily Progress (1x1) - Square
             StaggeredGridTile.count(
               crossAxisCellCount: 1,
               mainAxisCellCount: 1,
-              child: _buildProgressTile(context, completionRate, completedToday, totalActive).animate().fadeIn(delay: 200.ms).slideX(begin: -0.2, end: 0),
+              child: _buildProgressTile(
+                context,
+                completionRate,
+                completedToday,
+                totalActive,
+              ).animate().fadeIn(delay: 200.ms).slideX(begin: -0.2, end: 0),
             ),
 
-             // Tile 3: Quick Voice/AI (1x1) - Square
+            // Tile 3: Quick Voice/AI (1x1) - Square
             StaggeredGridTile.count(
               crossAxisCellCount: 1,
               mainAxisCellCount: 1,
-              child: _buildQuickActionTile(context).animate().fadeIn(delay: 300.ms).slideX(begin: 0.2, end: 0),
+              child: _buildQuickActionTile(
+                context,
+              ).animate().fadeIn(delay: 300.ms).slideX(begin: 0.2, end: 0),
             ),
           ],
         );
@@ -63,7 +77,7 @@ class BentoGrid extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.primary.withOpacity(0.3),
+            color: theme.colorScheme.primary.withAlpha(77),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -77,7 +91,7 @@ class BentoGrid extends StatelessWidget {
             child: Icon(
               Icons.local_fire_department_rounded,
               size: 100,
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withAlpha(26),
             ),
           ),
           Padding(
@@ -88,9 +102,18 @@ class BentoGrid extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.local_fire_department_rounded, color: Colors.white.withOpacity(0.9)),
+                    Icon(
+                      Icons.local_fire_department_rounded,
+                      color: Colors.white.withAlpha(230),
+                    ),
                     const SizedBox(width: 8),
-                    Text("Current Streak", style: TextStyle(color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w600)),
+                    Text(
+                      "Current Streak",
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(230),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -100,19 +123,31 @@ class BentoGrid extends StatelessWidget {
                   children: [
                     Text(
                       "$streak",
-                      style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white, height: 1),
+                      style: const TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       "Days",
-                      style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.8), fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.white.withAlpha(204),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "Keep it up!", 
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                  "Keep it up!",
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(179),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -122,7 +157,12 @@ class BentoGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildProgressTile(BuildContext context, double percent, int completed, int total) {
+  Widget _buildProgressTile(
+    BuildContext context,
+    double percent,
+    int completed,
+    int total,
+  ) {
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
@@ -150,9 +190,9 @@ class BentoGrid extends StatelessWidget {
             "$completed / $total Done",
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600
+              fontWeight: FontWeight.w600,
             ),
-          )
+          ),
         ],
       ),
     );
@@ -171,6 +211,7 @@ class BentoGrid extends StatelessWidget {
 
         try {
           final tip = await context.read<AnalyticsProvider>().getDailyTip();
+          if (!context.mounted) return;
           Navigator.pop(context); // Close loader
 
           if (context.mounted) {
@@ -178,8 +219,16 @@ class BentoGrid extends StatelessWidget {
               context: context,
               builder: (context) => AlertDialog(
                 backgroundColor: theme.colorScheme.surface,
-                icon: Icon(Icons.auto_awesome, color: theme.colorScheme.primary, size: 48),
-                title: Text("Today's Insight", style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
+                icon: Icon(
+                  Icons.auto_awesome,
+                  color: theme.colorScheme.primary,
+                  size: 48,
+                ),
+                title: Text(
+                  "Today's Insight",
+                  style: theme.textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
                 content: Text(
                   tip,
                   style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
@@ -189,18 +238,19 @@ class BentoGrid extends StatelessWidget {
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text("Awesome"),
-                  )
+                  ),
                 ],
               ),
             );
           }
         } catch (e) {
-           Navigator.pop(context); // Close loader
+          if (!context.mounted) return;
+          Navigator.pop(context); // Close loader
         }
       },
       borderRadius: BorderRadius.circular(24),
       child: Container(
-         decoration: BoxDecoration(
+        decoration: BoxDecoration(
           color: theme.colorScheme.secondaryContainer,
           borderRadius: BorderRadius.circular(24),
         ),
@@ -213,10 +263,13 @@ class BentoGrid extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surface.withOpacity(0.5),
+                  color: theme.colorScheme.surface.withAlpha(128),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.auto_awesome, color: theme.colorScheme.onSecondaryContainer),
+                child: Icon(
+                  Icons.auto_awesome,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,11 +285,13 @@ class BentoGrid extends StatelessWidget {
                   Text(
                     "Get a tip",
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer.withOpacity(0.7),
+                      color: theme.colorScheme.onSecondaryContainer.withAlpha(
+                        179,
+                      ),
                     ),
                   ),
                 ],
-              )
+              ),
             ],
           ),
         ),

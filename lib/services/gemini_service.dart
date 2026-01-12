@@ -43,7 +43,8 @@ class GeminiService {
 
   Future<String> generateDailyTip() async {
     try {
-      const prompt = "Give me a short, punchy, motivational tip about habit building. Max 20 words. Be encouraging.";
+      const prompt =
+          "Give me a short, punchy, motivational tip about habit building. Max 20 words. Be encouraging.";
       final response = await _callGeminiAPI(prompt);
       return response.trim();
     } catch (e) {
@@ -395,13 +396,11 @@ Rules:
     int partialMatches = 0;
 
     for (final habitWord in habitWords) {
-      bool foundExact = false;
       bool foundPartial = false;
 
       for (final inputWord in inputWords) {
         if (inputWord == habitWord) {
           exactMatches++;
-          foundExact = true;
           break;
         } else if (inputWord.contains(habitWord) ||
             habitWord.contains(inputWord)) {

@@ -133,10 +133,10 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(AppTheme.spacingM),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                color: Theme.of(context).colorScheme.primary.withAlpha(26),
                 borderRadius: BorderRadius.circular(AppTheme.radiusM),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  color: Theme.of(context).colorScheme.primary.withAlpha(77),
                 ),
               ),
               child: Column(
@@ -291,7 +291,9 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
                 ),
                 subtitle: Text(_getTypeDescription(type)),
                 value: type,
+                // ignore: deprecated_member_use
                 groupValue: _selectedType,
+                // ignore: deprecated_member_use
                 onChanged: isDisabled
                     ? null
                     : (value) {
@@ -404,12 +406,12 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.outline.withOpacity(0.1),
+              : Theme.of(context).colorScheme.outline.withAlpha(26),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
                 ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                : Theme.of(context).colorScheme.outline.withAlpha(77),
           ),
         ),
         child: Center(
@@ -442,7 +444,7 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
             Text(
               'Link specific habits to this notification',
               style: AppTheme.bodySmall.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
               ),
             ),
             const SizedBox(height: AppTheme.spacingM),
@@ -450,9 +452,7 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
               Text(
                 'No habits available',
                 style: AppTheme.bodyMedium.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.5),
+                  color: Theme.of(context).colorScheme.onSurface.withAlpha(128),
                 ),
               )
             else

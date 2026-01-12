@@ -7,6 +7,7 @@ import '../services/notification_service.dart';
 import '../models/notification_settings.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
+import '../utils/app_log.dart';
 import '../widgets/premium_dialog.dart';
 import '../screens/notification_setup_screen.dart';
 import '../config/app_config.dart';
@@ -34,7 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       _notifications = await _databaseService.getNotificationSettings();
     } catch (e) {
-      print('Failed to load notifications: $e');
+      AppLog.e('Failed to load notifications', e);
     } finally {
       if (mounted) setState(() => _isLoadingNotifications = false);
     }
@@ -172,10 +173,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(AppTheme.spacingS),
                 decoration: BoxDecoration(
-                  color: AppTheme.warningColor.withOpacity(0.1),
+                  color: AppTheme.warningColor.withAlpha(26),
                   borderRadius: BorderRadius.circular(AppTheme.radiusS),
                   border: Border.all(
-                    color: AppTheme.warningColor.withOpacity(0.3),
+                    color: AppTheme.warningColor.withAlpha(77),
                   ),
                 ),
                 child: Row(
@@ -215,7 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(AppTheme.spacingL),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+        color: Theme.of(context).colorScheme.outline.withAlpha(26),
         borderRadius: BorderRadius.circular(AppTheme.radiusM),
       ),
       child: Column(
@@ -229,14 +230,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             'No notifications set up',
             style: AppTheme.titleMedium.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
             ),
           ),
           const SizedBox(height: AppTheme.spacingS),
           Text(
             'Create reminders to stay on track with your habits',
             style: AppTheme.bodySmall.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(128),
             ),
             textAlign: TextAlign.center,
           ),
@@ -262,8 +263,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.all(AppTheme.spacingS),
           decoration: BoxDecoration(
             color: notification.isEnabled
-                ? AppTheme.successColor.withOpacity(0.1)
-                : Theme.of(context).colorScheme.outline.withOpacity(0.1),
+                ? AppTheme.successColor.withAlpha(26)
+                : Theme.of(context).colorScheme.outline.withAlpha(26),
             borderRadius: BorderRadius.circular(AppTheme.radiusS),
           ),
           child: Icon(
@@ -371,6 +372,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await NotificationService().cancelNotification(notification.id!);
       }
 
+      if (!mounted) return;
       _loadNotifications();
 
       Helpers.showSnackBar(
@@ -378,6 +380,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         enabled ? 'Notification enabled' : 'Notification disabled',
       );
     } catch (e) {
+      if (!mounted) return;
       Helpers.showSnackBar(
         context,
         'Failed to update notification: $e',
@@ -626,7 +629,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             RadioListTile<String>(
               title: const Text('Light'),
               value: 'light',
+              // ignore: deprecated_member_use
               groupValue: userProvider.getSetting('theme_mode'),
+              // ignore: deprecated_member_use
               onChanged: (value) {
                 userProvider.updateSetting('theme_mode', value!);
                 Navigator.of(context).pop();
@@ -635,7 +640,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             RadioListTile<String>(
               title: const Text('Dark'),
               value: 'dark',
+              // ignore: deprecated_member_use
               groupValue: userProvider.getSetting('theme_mode'),
+              // ignore: deprecated_member_use
               onChanged: (value) {
                 userProvider.updateSetting('theme_mode', value!);
                 Navigator.of(context).pop();
@@ -644,7 +651,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             RadioListTile<String>(
               title: const Text('System'),
               value: 'system',
+              // ignore: deprecated_member_use
               groupValue: userProvider.getSetting('theme_mode'),
+              // ignore: deprecated_member_use
               onChanged: (value) {
                 userProvider.updateSetting('theme_mode', value!);
                 Navigator.of(context).pop();
@@ -680,7 +689,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     (language) => RadioListTile<String>(
                       title: Text(_getLanguageDisplayName(language)),
                       value: language,
+                      // ignore: deprecated_member_use
                       groupValue: userProvider.getSetting('voice_language'),
+                      // ignore: deprecated_member_use
                       onChanged: (value) {
                         userProvider.updateSetting('voice_language', value!);
                         Navigator.of(context).pop();
