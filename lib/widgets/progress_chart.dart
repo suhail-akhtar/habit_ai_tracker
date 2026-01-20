@@ -114,15 +114,16 @@ class _ProgressChartState extends State<ProgressChart>
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 30,
-              interval: 1,
+              interval: widget.data.length > 14 ? 5 : 1,
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
                 if (index >= 0 && index < widget.data.length) {
                   final date = widget.data[index]['date'] as DateTime;
+                  final label = widget.data[index]['label']?.toString();
                   return SideTitleWidget(
                     meta: meta,
                     child: Text(
-                      '${date.day}',
+                      label ?? '${date.day}',
                       style: AppTheme.bodySmall.copyWith(
                         color: Theme.of(
                           context,
@@ -239,10 +240,11 @@ class _ProgressChartState extends State<ProgressChart>
                 final index = value.toInt();
                 if (index >= 0 && index < widget.data.length) {
                   final date = widget.data[index]['date'] as DateTime;
+                  final label = widget.data[index]['label']?.toString();
                   return SideTitleWidget(
                     meta: meta,
                     child: Text(
-                      '${date.day}',
+                      label ?? '${date.day}',
                       style: AppTheme.bodySmall.copyWith(
                         color: Theme.of(
                           context,

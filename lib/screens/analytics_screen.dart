@@ -79,6 +79,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             const SizedBox(height: AppTheme.spacingL),
             _buildStatsOverview(analyticsProvider),
             const SizedBox(height: AppTheme.spacingL),
+            _buildRangeSelector(analyticsProvider),
+            const SizedBox(height: AppTheme.spacingM),
+            _buildRangeSummary(analyticsProvider),
+            const SizedBox(height: AppTheme.spacingL),
             _buildProgressChart(analyticsProvider),
             const SizedBox(height: AppTheme.spacingL),
             _buildHabitBreakdown(habitProvider),
@@ -137,9 +141,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           const SizedBox(height: AppTheme.spacingL),
           _buildSuggestions(),
           const SizedBox(height: AppTheme.spacingL),
-          _buildPatternAnalysis(),
+          _buildPatternAnalysis(analyticsProvider),
           const SizedBox(height: AppTheme.spacingL),
-          _buildGoalSuggestions(),
+          _buildGoalSuggestions(analyticsProvider),
         ],
       ),
     );
@@ -241,12 +245,165 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
+  Widget _buildRangeSelector(AnalyticsProvider analyticsProvider) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Time Range', style: AppTheme.titleMedium),
+            const SizedBox(height: AppTheme.spacingM),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withAlpha(77),
+                borderRadius: BorderRadius.circular(AppTheme.radiusM),
+              ),
+              child: Row(
+                children: [
+                  _buildRangeChip(
+                    label: 'Week',
+                    isSelected:
+                        analyticsProvider.range == AnalyticsRange.week,
+                    onTap: () => analyticsProvider.setRange(
+                      AnalyticsRange.week,
+                    ),
+                  ),
+                  _buildRangeChip(
+                    label: 'Month',
+                    isSelected:
+                        analyticsProvider.range == AnalyticsRange.month,
+                    onTap: () => analyticsProvider.setRange(
+                      AnalyticsRange.month,
+                    ),
+                  ),
+                  _buildRangeChip(
+                    label: 'Year',
+                    isSelected:
+                        analyticsProvider.range == AnalyticsRange.year,
+                    onTap: () => analyticsProvider.setRange(
+                      AnalyticsRange.year,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRangeChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurface,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRangeSummary(AnalyticsProvider analyticsProvider) {
+    final summary = analyticsProvider.rangeSummary;
+    if (summary.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final completionRate = (summary['completionRate'] as num?) ?? 0;
+    final deltaStr = summary['delta']?.toString() ?? '0.0';
+    final delta = double.tryParse(deltaStr) ?? 0.0;
+    final isUp = delta >= 0;
+    final trendColor = isUp ? AppTheme.successColor : AppTheme.warningColor;
+    final rangeLabel = summary['range'] == 'month'
+        ? 'This Month'
+        : summary['range'] == 'year'
+            ? 'This Year'
+            : 'This Week';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                rangeLabel,
+                '${completionRate.toStringAsFixed(1)}%',
+                Icons.track_changes,
+                Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: AppTheme.spacingM),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(AppTheme.spacingM),
+                decoration: BoxDecoration(
+                  color: trendColor.withAlpha(26),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      isUp ? Icons.trending_up : Icons.trending_down,
+                      color: trendColor,
+                      size: 32,
+                    ),
+                    const SizedBox(height: AppTheme.spacingS),
+                    Text(
+                      '${isUp ? '+' : ''}${delta.toStringAsFixed(1)}% vs last',
+                      style: AppTheme.bodySmall.copyWith(
+                        color: trendColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProgressChart(AnalyticsProvider analyticsProvider) {
-    final weeklyData = analyticsProvider.getWeeklyProgress();
+    final data = analyticsProvider.progressSeries;
+    final title = analyticsProvider.range == AnalyticsRange.month
+        ? 'Monthly Progress'
+        : analyticsProvider.range == AnalyticsRange.year
+            ? 'Yearly Progress'
+            : 'Weekly Progress';
 
     return ProgressChart(
-      data: weeklyData,
-      title: 'Weekly Progress',
+      data: data,
+      title: title,
       chartType: ChartType.line,
       primaryColor: Theme.of(context).colorScheme.primary,
     );
@@ -484,7 +641,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
-  Widget _buildPatternAnalysis() {
+  Widget _buildPatternAnalysis(AnalyticsProvider analyticsProvider) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -495,20 +652,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             const SizedBox(height: AppTheme.spacingM),
             _buildPatternItem(
               'Best Day',
-              'Mon',
+              analyticsProvider.bestDayLabel,
               Icons.calendar_today,
               AppTheme.successColor,
             ),
             _buildPatternItem(
               'Best Time',
-              'Morning',
+              analyticsProvider.bestTimeLabel,
               Icons.access_time,
               AppTheme.infoColor,
             ),
             _buildPatternItem(
-              'Focus',
-              'Consistency',
-              Icons.trending_up,
+              'Least Active Day',
+              analyticsProvider.leastActiveDayLabel,
+              Icons.trending_down,
               AppTheme.warningColor,
             ),
           ],
@@ -517,7 +674,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
-  Widget _buildGoalSuggestions() {
+  Widget _buildGoalSuggestions(AnalyticsProvider analyticsProvider) {
+    final analytics = analyticsProvider.analytics;
+    final bestStreak = analytics['bestStreak'] ?? 0;
+    final completionRate = analytics['completionRate'] ?? 0;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -527,14 +688,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             Text('Goal Suggestions', style: AppTheme.titleMedium),
             const SizedBox(height: AppTheme.spacingM),
             _buildGoalItem(
-              'Reach 30-day streak',
-              'You\'re 23 days away from your longest streak',
+              bestStreak >= 30 ? 'Protect your streak' : 'Reach 30-day streak',
+              bestStreak >= 30
+                  ? 'You\'re on a $bestStreak day streak — keep it alive'
+                  : 'You\'re ${30 - bestStreak} days away from 30',
               Icons.emoji_events,
               AppTheme.warningColor,
             ),
             _buildGoalItem(
               'Maintain 80% completion',
-              'You\'re currently at 78% this week',
+              'You\'re currently at $completionRate% this week',
               Icons.track_changes,
               AppTheme.infoColor,
             ),

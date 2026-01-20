@@ -16,6 +16,7 @@ import 'screens/analytics_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/incoming_call_screen.dart';
 import 'screens/alarm_screen.dart';
+import 'screens/bootstrap_screen.dart';
 import 'services/notification_service.dart';
 import 'services/database_service.dart';
 import 'models/habit.dart';
@@ -219,7 +220,7 @@ class AIVoiceHabitTrackerApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: _getThemeMode(userProvider.getSetting('theme_mode')),
-            home: const MainNavigationScreen(),
+            home: const BootstrapScreen(),
             routes: {
               '/dashboard': (context) => const DashboardScreen(),
               '/habit-setup': (context) => const HabitSetupScreen(),

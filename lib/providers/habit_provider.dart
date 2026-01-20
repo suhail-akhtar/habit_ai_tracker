@@ -13,6 +13,7 @@ class HabitProvider with ChangeNotifier {
 
   List<Habit> _habits = [];
   List<HabitLog> _todayLogs = [];
+  int _longestStreak = 0;
   bool _isLoading = false;
   String? _error;
 
@@ -20,6 +21,10 @@ class HabitProvider with ChangeNotifier {
   List<HabitLog> get todayLogs => _todayLogs;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  List<Habit> get activeHabits {
+    return _habits.where((habit) => habit.isActive).toList();
+  }
 
   // 🔧 ENHANCED: Real-time habit count with database verification
   int get habitCount {
@@ -35,14 +40,40 @@ class HabitProvider with ChangeNotifier {
   }
 
   List<Habit> get todayHabits {
-    return _habits.where((habit) => habit.isActive).toList();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    bool isDueToday(Habit habit) {
+      if (!habit.isActive) return false;
+
+      final start = habit.startDate;
+      if (start != null) {
+        final startDay = DateTime(start.year, start.month, start.day);
+        if (today.isBefore(startDay)) return false;
+      }
+
+      final days = habit.scheduleDaysOfWeek.isEmpty
+          ? const [1, 2, 3, 4, 5, 6, 7]
+          : habit.scheduleDaysOfWeek;
+      return days.contains(today.weekday);
+    }
+
+    return activeHabits.where(isDueToday).toList();
   }
 
   int get longestStreak {
-    // Calculate longest streak across all habits
-    int maxStreak = 0;
-    // This would be implemented with proper database queries
-    return maxStreak;
+    return _longestStreak;
+  }
+
+  Future<void> _refreshLongestStreak() async {
+    try {
+      _longestStreak = await _databaseService.getBestStreakAcrossActiveHabits();
+    } catch (e) {
+      // Best-effort; don't block core flows on streak aggregation.
+      if (kDebugMode) {
+        AppLog.e('Failed to refresh longest streak', e);
+      }
+    }
   }
 
   Future<void> _updateWidgets() async {
@@ -63,6 +94,7 @@ class HabitProvider with ChangeNotifier {
     try {
       _habits = await _databaseService.getActiveHabits();
       await _loadTodayLogs();
+      await _refreshLongestStreak();
       _updateWidgets(); // Update widgets after loading
 
       if (kDebugMode) {
@@ -197,12 +229,40 @@ class HabitProvider with ChangeNotifier {
 
       await _databaseService.logHabit(habitLog);
       await _loadTodayLogs();
+      await _refreshLongestStreak();
       _updateWidgets(); // Update widgets
 
       // Check for streak achievements
       final streak = await _databaseService.getHabitStreak(habitId);
       if (streak > 0 && streak % 7 == 0) {
         await _notificationService.showStreakAchievement(habit.name, streak);
+      }
+
+      // 🎯 Goal achievement (best-effort): notify when goal target reached
+      final goalProgress = await _databaseService.getHabitGoalProgress(habitId);
+      if (goalProgress.isNotEmpty) {
+        final target = goalProgress['target'] as int? ?? 0;
+        final completed = goalProgress['completed'] as int? ?? 0;
+        final type = goalProgress['type'] as String? ?? '';
+
+        if (target > 0 && completed == target) {
+          final title = type == 'weekly'
+              ? 'Weekly Goal Achieved!'
+              : type == 'total'
+                  ? 'Total Goal Achieved!'
+                  : 'Streak Goal Achieved!';
+          final message = type == 'weekly'
+              ? 'You hit $target completions this week for "$habit.name".'
+              : type == 'total'
+                  ? 'You reached $target total completions for "$habit.name".'
+                  : 'You reached a $target-day streak for "$habit.name".';
+
+          await _notificationService.showGoalAchievement(
+            habit.name,
+            title,
+            message,
+          );
+        }
       }
 
       if (kDebugMode) {
@@ -238,6 +298,8 @@ class HabitProvider with ChangeNotifier {
 
       await _databaseService.logHabit(habitLog);
       await _loadTodayLogs();
+      await _refreshLongestStreak();
+      _updateWidgets();
 
       if (kDebugMode) {
         AppLog.d('⏭️ HabitProvider: Logged skip for "${habit.name}"');
@@ -334,7 +396,7 @@ class HabitProvider with ChangeNotifier {
 
   // 🔧 NEW: Get habits accessible to current user tier
   List<Habit> getAccessibleHabits({bool isPremium = false}) {
-    return todayHabits;
+    return activeHabits;
   }
 
   // 🔧 NEW: Force reload from database (for critical operations)

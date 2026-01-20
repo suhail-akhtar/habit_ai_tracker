@@ -2,18 +2,32 @@ import 'package:flutter/foundation.dart';
 import '../services/database_service.dart';
 import '../utils/app_log.dart';
 
+enum AnalyticsRange { week, month, year }
+
 class AnalyticsProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
 
   Map<String, dynamic> _analytics = {};
   Map<DateTime, int> _heatmapData = {};
+  List<Map<String, dynamic>> _progressSeries = const [];
+  Map<String, dynamic> _rangeSummary = {};
+  AnalyticsRange _range = AnalyticsRange.week;
   String? _weeklyInsight;
+  String _bestTimeLabel = '—';
+  String _bestDayLabel = '—';
+  String _leastActiveDayLabel = '—';
   bool _isLoading = false;
   String? _error;
 
   Map<String, dynamic> get analytics => _analytics;
   Map<DateTime, int> get heatmapData => _heatmapData;
+  List<Map<String, dynamic>> get progressSeries => _progressSeries;
+  Map<String, dynamic> get rangeSummary => _rangeSummary;
+  AnalyticsRange get range => _range;
   String? get weeklyInsight => _weeklyInsight;
+  String get bestTimeLabel => _bestTimeLabel;
+  String get bestDayLabel => _bestDayLabel;
+  String get leastActiveDayLabel => _leastActiveDayLabel;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -22,6 +36,8 @@ class AnalyticsProvider with ChangeNotifier {
     try {
       _analytics = await _databaseService.getAnalytics();
       _heatmapData = await _databaseService.getHeatmapData();
+      await _loadRangeData();
+      await _loadPatternInsights();
       await _loadWeeklyInsight();
       _clearError();
     } catch (e) {
@@ -70,6 +86,80 @@ class AnalyticsProvider with ChangeNotifier {
     }
   }
 
+  Future<void> setRange(AnalyticsRange range) async {
+    if (_range == range) return;
+    _range = range;
+    await _loadRangeData();
+    notifyListeners();
+  }
+
+  Future<void> _loadRangeData() async {
+    _progressSeries = await _databaseService.getProgressSeries(
+      range: _range.name,
+    );
+    _rangeSummary = await _databaseService.getRangeSummary(
+      range: _range.name,
+    );
+  }
+
+  Future<void> _loadPatternInsights() async {
+    final hourCounts = await _databaseService.getCompletionsByHour(days: 30);
+    final weekdayCounts =
+        await _databaseService.getCompletionsByWeekday(days: 30);
+
+    _bestTimeLabel = _formatBestHour(hourCounts);
+    _bestDayLabel = _formatBestWeekday(weekdayCounts, preferMax: true);
+    _leastActiveDayLabel = _formatBestWeekday(weekdayCounts, preferMax: false);
+  }
+
+  String _formatBestHour(Map<int, int> hourCounts) {
+    if (hourCounts.isEmpty) return '—';
+    final best = hourCounts.entries.reduce(
+      (a, b) => a.value >= b.value ? a : b,
+    );
+    final start = best.key;
+    final end = (best.key + 1) % 24;
+    return '${_formatHour(start)}–${_formatHour(end)}';
+  }
+
+  String _formatBestWeekday(
+    Map<int, int> weekdayCounts, {
+    required bool preferMax,
+  }) {
+    if (weekdayCounts.isEmpty) return '—';
+    final entry = weekdayCounts.entries.reduce(
+      (a, b) => preferMax
+          ? (a.value >= b.value ? a : b)
+          : (a.value <= b.value ? a : b),
+    );
+    return _weekdayLabel(entry.key);
+  }
+
+  String _weekdayLabel(int weekday) {
+    const labels = [
+      'Mon',
+      'Tue',
+      'Wed',
+      'Thu',
+      'Fri',
+      'Sat',
+      'Sun',
+    ];
+    if (weekday < 1 || weekday > 7) return '—';
+    return labels[weekday - 1];
+  }
+
+  String _formatHour(int hour) {
+    final normalized = hour % 24;
+    final period = normalized >= 12 ? 'PM' : 'AM';
+    final display = normalized == 0
+        ? 12
+        : normalized > 12
+            ? normalized - 12
+            : normalized;
+    return '$display $period';
+  }
+
   Future<String> getDailyTip() async {
     const tips = <String>[
       'Start small: aim for consistency, not intensity.',
@@ -82,27 +172,8 @@ class AnalyticsProvider with ChangeNotifier {
     return tips[index];
   }
 
-  Map<String, dynamic> getHabitAnalytics(int habitId) {
-    // This would return detailed analytics for a specific habit
-    // Including streak, completion rate, patterns, etc.
-    return {
-      'streak': 0,
-      'completionRate': 0.0,
-      'totalLogs': 0,
-      'averagePerWeek': 0.0,
-    };
-  }
-
-  List<Map<String, dynamic>> getWeeklyProgress() {
-    // Return weekly progress data for charts
-    return List.generate(7, (index) {
-      final date = DateTime.now().subtract(Duration(days: 6 - index));
-      return {
-        'date': date,
-        'completedHabits': 0, // This would be calculated from actual data
-        'totalHabits': 0,
-      };
-    });
+  Future<Map<String, dynamic>> getHabitAnalytics(int habitId) async {
+    return await _databaseService.getHabitAnalytics(habitId);
   }
 
   void _setLoading(bool loading) {

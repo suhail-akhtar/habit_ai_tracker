@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ai_voice_habit_tracker/main.dart';
 import 'package:ai_voice_habit_tracker/screens/analytics_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('Main App Widget Tests', () {
+    setUpAll(() {
+      // BootstrapScreen reads this flag to decide whether to show onboarding.
+      SharedPreferences.setMockInitialValues({'onboarding_complete': true});
+    });
+
     testWidgets('App starts and displays navigation',
         (WidgetTester tester) async {
       // Build our app and trigger a frame.

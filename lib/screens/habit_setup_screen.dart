@@ -22,17 +22,29 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _goalTargetController = TextEditingController();
 
   String _selectedCategory = Constants.habitCategories.first;
   String _selectedIcon = Constants.habitIcons.first;
   Color _selectedColor = Constants.habitColors.first;
   int _targetFrequency = 1;
 
+  // 🎯 Goals & Targets
+  String _goalType = 'streak';
+  int _goalTarget = 7;
+
+  // 🏷️ Tags
+  List<String> _selectedTags = [];
+
   // 🕒 NEW: Flexible Scheduling State
   String _frequencyType = 'daily';
   int _intervalMinutes = 60;
   TimeOfDay _windowStartTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _windowEndTime = const TimeOfDay(hour: 21, minute: 0);
+
+  // 📅 NEW: Scheduled weekdays + start date
+  List<int> _scheduleDaysOfWeek = [1, 2, 3, 4, 5, 6, 7];
+  DateTime _startDate = DateTime.now();
 
   // 🔔 NEW: Notification State
   bool _isReminderEnabled = false;
@@ -45,6 +57,8 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     super.initState();
     if (widget.habitToEdit != null) {
       _initializeWithExistingHabit();
+    } else {
+      _goalTargetController.text = _goalTarget.toString();
     }
   }
 
@@ -56,9 +70,18 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
     _selectedIcon = habit.iconName;
     _selectedColor = habit.color;
     _targetFrequency = habit.targetFrequency;
+    _goalType = habit.goalType;
+    _goalTarget = habit.goalTarget ?? 7;
+    _goalTargetController.text = _goalTarget.toString();
+    _selectedTags = List.from(habit.tags);
 
     // 🕒 NEW: Load Scheduling Data
     _frequencyType = habit.frequencyType;
+    _scheduleDaysOfWeek = habit.scheduleDaysOfWeek.isEmpty
+        ? [1, 2, 3, 4, 5, 6, 7]
+        : List.from(habit.scheduleDaysOfWeek);
+    final start = habit.startDate ?? habit.createdAt;
+    _startDate = DateTime(start.year, start.month, start.day);
     if (habit.intervalMinutes != null) {
       _intervalMinutes = habit.intervalMinutes!;
     }
@@ -92,6 +115,7 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _goalTargetController.dispose();
     super.dispose();
   }
 
@@ -128,7 +152,11 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                       children: [
                         _buildHabitPreview(),
                         const SizedBox(height: AppTheme.spacingL),
+                        _buildTemplates(),
+                        const SizedBox(height: AppTheme.spacingL),
                         _buildBasicInfo(),
+                        const SizedBox(height: AppTheme.spacingL),
+                        _buildGoalsAndTags(),
                         const SizedBox(height: AppTheme.spacingL),
                         _buildCategorySelection(),
                         const SizedBox(height: AppTheme.spacingL),
@@ -218,6 +246,231 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemplates() {
+    if (widget.habitToEdit != null) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Quick Templates', style: AppTheme.titleMedium),
+            const SizedBox(height: AppTheme.spacingS),
+            Text(
+              'Start faster with a preset, you can edit everything later.',
+              style: AppTheme.bodySmall,
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+            Wrap(
+              spacing: AppTheme.spacingS,
+              runSpacing: AppTheme.spacingS,
+              children: Constants.habitTemplates.map((template) {
+                final name = template['name'] as String;
+                return ActionChip(
+                  label: Text(name),
+                  avatar: Icon(
+                    Helpers.getHabitIcon(template['icon'] as String),
+                    size: 18,
+                  ),
+                  onPressed: () => _applyTemplate(template),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _applyTemplate(Map<String, dynamic> template) {
+    setState(() {
+      _nameController.text = template['name'] as String;
+      _descriptionController.text =
+          (template['description'] as String?) ?? '';
+      _selectedCategory = template['category'] as String;
+      _selectedIcon = template['icon'] as String;
+      final colorIndex = (template['colorIndex'] as int?) ?? 0;
+      _selectedColor = Constants.habitColors[
+          colorIndex.clamp(0, Constants.habitColors.length - 1)];
+      _goalType = (template['goalType'] as String?) ?? 'streak';
+      _goalTarget = (template['goalTarget'] as int?) ?? 7;
+      _goalTargetController.text = _goalTarget.toString();
+      _selectedTags =
+          (template['tags'] as List<dynamic>? ?? []).cast<String>();
+    });
+  }
+
+  Widget _buildGoalsAndTags() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Goal & Tags', style: AppTheme.titleMedium),
+            const SizedBox(height: AppTheme.spacingM),
+
+            // Goal type toggle
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withAlpha(77),
+                borderRadius: BorderRadius.circular(AppTheme.radiusM),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _goalType = 'streak'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _goalType == 'streak'
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Streak',
+                            style: TextStyle(
+                              color: _goalType == 'streak'
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: _goalType == 'streak'
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _goalType = 'weekly'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _goalType == 'weekly'
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Weekly',
+                            style: TextStyle(
+                              color: _goalType == 'weekly'
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: _goalType == 'weekly'
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _goalType = 'total'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _goalType == 'total'
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Total',
+                            style: TextStyle(
+                              color: _goalType == 'total'
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: _goalType == 'total'
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+
+            TextFormField(
+              controller: _goalTargetController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Goal Target',
+                hintText: _goalType == 'streak'
+                    ? 'e.g., 14 days'
+                    : _goalType == 'weekly'
+                        ? 'e.g., 4 per week'
+                        : 'e.g., 100 total',
+                suffixText: _goalType == 'streak'
+                    ? 'days'
+                    : _goalType == 'weekly'
+                        ? '/week'
+                        : 'total',
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a goal target';
+                }
+                final parsed = int.tryParse(value.trim());
+                if (parsed == null || parsed <= 0) {
+                  return 'Goal target must be a positive number';
+                }
+                return null;
+              },
+              onChanged: (value) {
+                final parsed = int.tryParse(value.trim());
+                if (parsed != null && parsed > 0) {
+                  _goalTarget = parsed;
+                }
+              },
+            ),
+            const SizedBox(height: AppTheme.spacingL),
+
+            Text('Tags', style: AppTheme.bodyLarge),
+            const SizedBox(height: AppTheme.spacingS),
+            Wrap(
+              spacing: AppTheme.spacingS,
+              runSpacing: AppTheme.spacingS,
+              children: Constants.habitTags.map((tag) {
+                final isSelected = _selectedTags.contains(tag);
+                return FilterChip(
+                  selected: isSelected,
+                  label: Text(tag),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedTags.add(tag);
+                      } else {
+                        _selectedTags.remove(tag);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
             ),
           ],
         ),
@@ -510,9 +763,133 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
               _buildDailyControls()
             else
               _buildIntervalControls(),
+
+            const SizedBox(height: AppTheme.spacingL),
+            _buildScheduledDays(),
+            const SizedBox(height: AppTheme.spacingM),
+            _buildStartDatePicker(),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildScheduledDays() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Days', style: AppTheme.bodyLarge),
+        const SizedBox(height: AppTheme.spacingS),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildDayChip('M', 1),
+            _buildDayChip('T', 2),
+            _buildDayChip('W', 3),
+            _buildDayChip('T', 4),
+            _buildDayChip('F', 5),
+            _buildDayChip('S', 6),
+            _buildDayChip('S', 7),
+          ],
+        ),
+        const SizedBox(height: AppTheme.spacingS),
+        Row(
+          children: [
+            TextButton(
+              onPressed: () => setState(
+                () => _scheduleDaysOfWeek = [1, 2, 3, 4, 5],
+              ),
+              child: const Text('Weekdays'),
+            ),
+            TextButton(
+              onPressed: () => setState(() => _scheduleDaysOfWeek = [6, 7]),
+              child: const Text('Weekends'),
+            ),
+            TextButton(
+              onPressed: () => setState(
+                () => _scheduleDaysOfWeek = [1, 2, 3, 4, 5, 6, 7],
+              ),
+              child: const Text('All Days'),
+            ),
+          ],
+        ),
+        Text(
+          'Rest days won\'t break your streak.',
+          style: AppTheme.bodySmall.copyWith(color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDayChip(String label, int day) {
+    final isSelected = _scheduleDaysOfWeek.contains(day);
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (isSelected) {
+            if (_scheduleDaysOfWeek.length > 1) {
+              _scheduleDaysOfWeek.remove(day);
+            }
+          } else {
+            _scheduleDaysOfWeek.add(day);
+          }
+        });
+      },
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.outline.withAlpha(26),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outline.withAlpha(77),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected
+                  ? Colors.white
+                  : Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStartDatePicker() {
+    final startLabel =
+        '${_startDate.year}-${_startDate.month.toString().padLeft(2, '0')}-${_startDate.day.toString().padLeft(2, '0')}';
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        Icons.event,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: const Text('Start date'),
+      subtitle: Text(startLabel),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: _startDate,
+          firstDate: DateTime(now.year - 5, 1, 1),
+          lastDate: DateTime(now.year + 5, 12, 31),
+        );
+        if (picked != null) {
+          setState(() {
+            _startDate = DateTime(picked.year, picked.month, picked.day);
+          });
+        }
+      },
     );
   }
 
@@ -913,6 +1290,8 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         colorCode: Helpers.colorToHex(_selectedColor),
         iconName: _selectedIcon,
         isActive: true,
+        scheduleDaysOfWeek: _scheduleDaysOfWeek,
+        startDate: _startDate,
         // 🕒 NEW: Save Scheduling Data
         frequencyType: _frequencyType,
         intervalMinutes: _frequencyType == 'interval' ? _intervalMinutes : null,
@@ -928,6 +1307,11 @@ class _HabitSetupScreenState extends State<HabitSetupScreen> {
         reminderTime: _isReminderEnabled && _frequencyType == 'daily'
             ? '${_reminderTime.hour}:${_reminderTime.minute.toString().padLeft(2, '0')}'
             : null,
+
+        // 🎯 Goals + Tags
+        goalType: _goalType,
+        goalTarget: _goalTarget,
+        tags: _selectedTags,
 
         createdAt: widget.habitToEdit?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),

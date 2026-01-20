@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import '../providers/user_provider.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../services/backup_service.dart';
 import '../models/notification_settings.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
 import '../utils/app_log.dart';
 import '../screens/notification_setup_screen.dart';
 import '../config/app_config.dart';
+import '../providers/habit_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,6 +24,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final DatabaseService _databaseService = DatabaseService();
+  final BackupService _backupService = BackupService();
   List<NotificationSettings> _notifications = [];
   bool _isLoadingNotifications = false;
 
@@ -385,17 +391,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               leading: const Icon(Icons.backup),
               title: const Text('Backup Data'),
-              subtitle: const Text('Save your habits to the cloud'),
-              trailing: const Icon(Icons.cloud_done, color: AppTheme.successColor),
+              subtitle: const Text('Export a JSON backup file'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () => _showBackupDialog(context),
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.download),
               title: const Text('Export Data'),
-              subtitle: const Text('Download your data as CSV'),
+              subtitle: const Text('Export habits and logs as CSV'),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () => _exportData(context),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.upload_file),
+              title: const Text('Import Backup'),
+              subtitle: const Text('Restore data from a JSON backup'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => _importBackup(context),
             ),
             const Divider(),
             ListTile(
@@ -542,7 +556,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Backup Data'),
         content: const Text(
-          'Your data is automatically backed up to the cloud. Last backup: Just now',
+          'Export a JSON backup file you can store or share safely.',
         ),
         actions: [
           TextButton(
@@ -552,17 +566,98 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Helpers.showSnackBar(context, 'Backup completed successfully');
+              _exportBackupFile(context);
             },
-            child: const Text('Backup Now'),
+            child: const Text('Export Backup'),
           ),
         ],
       ),
     );
   }
 
-  void _exportData(BuildContext context) {
-    Helpers.showSnackBar(context, 'Data export feature coming soon!');
+  Future<void> _exportBackupFile(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final file = await _backupService.exportJsonBackup();
+      await Share.shareXFiles(
+        [XFile(file.path)],
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Backup exported successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Backup export failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _exportData(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final files = await _backupService.exportCsv();
+      await Share.shareXFiles(
+        files.map((f) => XFile(f.path)).toList(),
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('CSV export ready to share')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('CSV export failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _importBackup(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.single.path;
+      if (path == null) return;
+
+      if (!mounted) return;
+
+      Helpers.showConfirmDialog(
+        context,
+        title: 'Import Backup',
+        content:
+            'This will replace your current data with the backup. Continue?',
+        confirmText: 'Import',
+        onConfirm: () async {
+          try {
+            final jsonString = await File(path).readAsString();
+            await _backupService.importJsonBackup(jsonString);
+            if (!mounted) return;
+            await _loadNotifications();
+            await context.read<HabitProvider>().loadHabits();
+            await context.read<UserProvider>().loadUserData();
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Backup imported successfully')),
+            );
+          } catch (e) {
+            if (!mounted) return;
+            messenger.showSnackBar(
+              SnackBar(content: Text('Import failed: $e')),
+            );
+          }
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Import failed: $e')),
+      );
+    }
   }
 
   void _showClearDataDialog(BuildContext context) {
@@ -572,10 +667,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       content:
           'This will permanently delete all your habits, logs, and settings. This action cannot be undone.',
       onConfirm: () {
-        Helpers.showSnackBar(context, 'All data cleared successfully');
+        _clearAllData(context);
       },
       confirmText: 'Clear Data',
     );
+  }
+
+  Future<void> _clearAllData(BuildContext context) async {
+    try {
+      await _databaseService.clearAllData();
+      await _loadNotifications();
+      if (!mounted) return;
+      await context.read<HabitProvider>().loadHabits();
+      await context.read<UserProvider>().loadUserData();
+      Helpers.showSnackBar(context, 'All data cleared successfully');
+    } catch (e) {
+      if (!mounted) return;
+      Helpers.showSnackBar(context, 'Failed to clear data: $e', isError: true);
+    }
   }
 
   void _showHelpDialog(BuildContext context) {

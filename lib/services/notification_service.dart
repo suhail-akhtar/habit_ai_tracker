@@ -33,6 +33,7 @@ class NotificationService {
 
   bool _isInitialized = false;
   bool _hasPermission = false;
+  bool _exactAlarmsAllowed = false;
 
   // 🔔 NEW: Store handler reference
   void Function(NotificationResponse)? _backgroundHandler;
@@ -156,7 +157,13 @@ class NotificationService {
           >();
 
       if (androidImplementation != null) {
-        await androidImplementation.requestExactAlarmsPermission();
+        try {
+          await androidImplementation.requestExactAlarmsPermission();
+          _exactAlarmsAllowed = true;
+        } catch (e) {
+          _exactAlarmsAllowed = false;
+          AppLog.e('ℹ️ Exact alarm permission not granted', e);
+        }
 
         // Android 14+ may require explicit user approval for full-screen intents.
         // This is best-effort: it may not be available/allowed on all devices.
@@ -204,34 +211,36 @@ class NotificationService {
       }
 
       final notificationDetails = _buildNotificationDetails(settings);
-      final scheduledTimes = _calculateScheduledTimes(settings);
+      final scheduledInstances = _calculateScheduledInstances(settings);
 
       bool allScheduled = true;
-      for (int i = 0; i < scheduledTimes.length; i++) {
-        final scheduledTime = scheduledTimes[i];
+      for (int i = 0; i < scheduledInstances.length; i++) {
+        final scheduled = scheduledInstances[i];
         final notificationId =
             (settings.id ?? 0) * 1000 + i; // Unique ID per instance
 
-        final androidScheduleMode = settings.type == NotificationType.alarm
+        final androidScheduleMode = _exactAlarmsAllowed
+          ? (settings.type == NotificationType.alarm
             ? AndroidScheduleMode.alarmClock
-            : AndroidScheduleMode.exactAllowWhileIdle;
+            : AndroidScheduleMode.exactAllowWhileIdle)
+          : AndroidScheduleMode.inexactAllowWhileIdle;
 
         try {
           await _flutterLocalNotificationsPlugin.zonedSchedule(
             notificationId,
             _buildTitle(settings, associatedHabits),
             _buildMessage(settings, associatedHabits),
-            scheduledTime,
+            scheduled.time,
             notificationDetails,
             androidScheduleMode: androidScheduleMode,
 
-            matchDateTimeComponents: _getMatchComponents(settings),
+            matchDateTimeComponents: scheduled.matchComponents,
             payload:
                 'custom_notification:${settings.type.name}:${settings.id}:${settings.habitIds.join(",")}',
           );
 
           AppLog.d(
-            '✅ Scheduled notification #$notificationId for ${scheduledTime.toString()}',
+            '✅ Scheduled notification #$notificationId for ${scheduled.time.toString()}',
           );
         } catch (e) {
           AppLog.e('❌ Failed to schedule notification #$notificationId', e);
@@ -422,14 +431,94 @@ class NotificationService {
       body,
       scheduled,
       NotificationDetails(android: androidDetails, iOS: iOSDetails),
-      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      androidScheduleMode: _exactAlarmsAllowed
+          ? AndroidScheduleMode.alarmClock
+          : AndroidScheduleMode.inexactAllowWhileIdle,
       payload: payload,
     );
   }
 
-  List<tz.TZDateTime> _calculateScheduledTimes(NotificationSettings settings) {
+  ({tz.TZDateTime time, DateTimeComponents? matchComponents}) _nextForWeekday(
+    int weekday,
+    TimeOfDay time,
+  ) {
     final now = DateTime.now();
-    final times = <tz.TZDateTime>[];
+    final today = DateTime(now.year, now.month, now.day);
+
+    var daysAhead = (weekday - today.weekday) % 7;
+    if (daysAhead < 0) daysAhead += 7;
+
+    var candidate = DateTime(
+      today.year,
+      today.month,
+      today.day,
+      time.hour,
+      time.minute,
+    ).add(Duration(days: daysAhead));
+
+    // If the candidate is now/past, roll to next week.
+    if (!candidate.isAfter(now)) {
+      candidate = candidate.add(const Duration(days: 7));
+    }
+
+    return (
+      time: tz.TZDateTime.from(candidate, tz.local),
+      matchComponents: DateTimeComponents.dayOfWeekAndTime,
+    );
+  }
+
+  int _daysInMonth(int year, int month) {
+    final firstOfNextMonth = (month == 12)
+        ? DateTime(year + 1, 1, 1)
+        : DateTime(year, month + 1, 1);
+    return firstOfNextMonth.subtract(const Duration(days: 1)).day;
+  }
+
+  ({tz.TZDateTime time, DateTimeComponents? matchComponents}) _nextForDayOfMonth(
+    int dayOfMonth,
+    TimeOfDay time,
+  ) {
+    final now = DateTime.now();
+    final thisMonthDay = dayOfMonth > _daysInMonth(now.year, now.month)
+        ? _daysInMonth(now.year, now.month)
+        : dayOfMonth;
+
+    DateTime candidate = DateTime(
+      now.year,
+      now.month,
+      thisMonthDay,
+      time.hour,
+      time.minute,
+    );
+
+    if (!candidate.isAfter(now)) {
+      final nextMonth = DateTime(now.year, now.month + 1, 1);
+      final nextMonthDay = dayOfMonth > _daysInMonth(nextMonth.year, nextMonth.month)
+          ? _daysInMonth(nextMonth.year, nextMonth.month)
+          : dayOfMonth;
+      candidate = DateTime(
+        nextMonth.year,
+        nextMonth.month,
+        nextMonthDay,
+        time.hour,
+        time.minute,
+      );
+    }
+
+    return (
+      time: tz.TZDateTime.from(candidate, tz.local),
+      matchComponents: DateTimeComponents.dayOfMonthAndTime,
+    );
+  }
+
+  List<({tz.TZDateTime time, DateTimeComponents? matchComponents})>
+  _calculateScheduledInstances(NotificationSettings settings) {
+    final now = DateTime.now();
+
+    // Normalize days list: if empty, assume "every day".
+    final days = settings.daysOfWeek.isEmpty
+        ? const [1, 2, 3, 4, 5, 6, 7]
+        : settings.daysOfWeek;
 
     switch (settings.repetition) {
       case RepetitionType.oneTime:
@@ -440,78 +529,51 @@ class NotificationService {
           settings.time.hour,
           settings.time.minute,
         );
-
-        // If time has passed today, schedule for tomorrow
         final finalDate = scheduledDate.isBefore(now)
             ? scheduledDate.add(const Duration(days: 1))
             : scheduledDate;
-
-        times.add(tz.TZDateTime.from(finalDate, tz.local));
-        break;
+        return [
+          (
+            time: tz.TZDateTime.from(finalDate, tz.local),
+            matchComponents: null,
+          ),
+        ];
 
       case RepetitionType.daily:
-        // Schedule for next occurrence for each selected day
-        for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
-          final testDate = now.add(Duration(days: dayOffset));
-          final weekday = testDate.weekday; // 1=Monday, 7=Sunday
-
-          if (settings.daysOfWeek.contains(weekday)) {
-            final scheduledDate = DateTime(
-              testDate.year,
-              testDate.month,
-              testDate.day,
-              settings.time.hour,
-              settings.time.minute,
-            );
-
-            if (scheduledDate.isAfter(now)) {
-              times.add(tz.TZDateTime.from(scheduledDate, tz.local));
-              break; // Only need next occurrence for daily
-            }
+        // If all days are selected, true daily repetition.
+        if (days.length == 7) {
+          var candidate = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            settings.time.hour,
+            settings.time.minute,
+          );
+          if (!candidate.isAfter(now)) {
+            candidate = candidate.add(const Duration(days: 1));
           }
+          return [
+            (
+              time: tz.TZDateTime.from(candidate, tz.local),
+              matchComponents: DateTimeComponents.time,
+            ),
+          ];
         }
-        break;
+
+        // If a subset of weekdays is selected, schedule one repeating weekly
+        // notification per selected weekday.
+        return days
+            .map((weekday) => _nextForWeekday(weekday, settings.time))
+            .toList();
 
       case RepetitionType.weekly:
-        // Schedule for next week
-        final nextWeek = now.add(const Duration(days: 7));
-        final scheduledDate = DateTime(
-          nextWeek.year,
-          nextWeek.month,
-          nextWeek.day,
-          settings.time.hour,
-          settings.time.minute,
-        );
-        times.add(tz.TZDateTime.from(scheduledDate, tz.local));
-        break;
+        // Weekly needs exactly one weekday; pick first if multiple.
+        final weekday = days.isNotEmpty ? days.first : DateTime.now().weekday;
+        return [_nextForWeekday(weekday, settings.time)];
 
       case RepetitionType.monthly:
-        // Schedule for next month
-        final nextMonth = DateTime(now.year, now.month + 1, now.day);
-        final scheduledDate = DateTime(
-          nextMonth.year,
-          nextMonth.month,
-          nextMonth.day,
-          settings.time.hour,
-          settings.time.minute,
-        );
-        times.add(tz.TZDateTime.from(scheduledDate, tz.local));
-        break;
-    }
-
-    return times;
-  }
-
-  DateTimeComponents? _getMatchComponents(NotificationSettings settings) {
-    switch (settings.repetition) {
-      case RepetitionType.daily:
-        return DateTimeComponents.time;
-      case RepetitionType.weekly:
-        return DateTimeComponents.dayOfWeekAndTime;
-      case RepetitionType.monthly:
-        return DateTimeComponents.dayOfMonthAndTime;
-      case RepetitionType.oneTime:
-        return null;
+        final dayOfMonth = DateTime.now().day;
+        return [_nextForDayOfMonth(dayOfMonth, settings.time)];
     }
   }
 
@@ -574,6 +636,10 @@ class NotificationService {
 
   // 🔔 NEW: Auto-scheduling for new habit system
   Future<void> scheduleHabitReminders(Habit habit) async {
+    if (!_isInitialized || !_hasPermission) {
+      AppLog.d('ℹ️ Skipping habit reminders: init=$_isInitialized, permission=$_hasPermission');
+      return;
+    }
     // 0. Clean up old reminders for this habit
     await cancelNotification(habit.id!);
 
@@ -618,18 +684,62 @@ class NotificationService {
     }
 
     // 2. Schedule Notifications
+    // - Interval mode: schedule multiple times daily.
+    // - Daily mode: if weekdays are restricted, schedule one per weekday (weekly repeat).
+
+    if (habit.frequencyType == 'daily') {
+      if (times.isEmpty) return;
+
+      final days = habit.scheduleDaysOfWeek.isEmpty
+          ? const [1, 2, 3, 4, 5, 6, 7]
+          : habit.scheduleDaysOfWeek;
+
+      int instance = 0;
+      for (final weekday in days) {
+        final scheduled = _nextForWeekday(weekday, times.first);
+        final notificationId = habit.id! * 1000 + instance;
+        instance++;
+
+        final settings = NotificationSettings(
+          id: habit.id,
+          title: '${habit.name} Reminder',
+          message: 'Don\'t forget your goal today!',
+          time: times.first,
+          habitIds: [habit.id!],
+          repetition: RepetitionType.daily,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          isEnabled: true,
+          type: NotificationType.simple,
+        );
+
+        await _flutterLocalNotificationsPlugin.zonedSchedule(
+          notificationId,
+          settings.title,
+          settings.message,
+          scheduled.time,
+          _buildNotificationDetails(settings),
+          androidScheduleMode: _exactAlarmsAllowed
+              ? AndroidScheduleMode.exactAllowWhileIdle
+              : AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: scheduled.matchComponents,
+          payload:
+              'custom_notification:${settings.type.name}:${settings.id}:${settings.habitIds.join(",")}',
+        );
+      }
+
+      AppLog.d('✅ Scheduled ${days.length} reminders for habit ${habit.id}');
+      return;
+    }
+
     for (int i = 0; i < times.length; i++) {
       final time = times[i];
-      // Base ID + index (up to 100 slots per habit to be safe, though 10 is current cancel limit)
-      // Let's increment cancel limit or valid range
       final notificationId = habit.id! * 1000 + i;
 
       final settings = NotificationSettings(
-        id: habit.id, // Group ID
+        id: habit.id,
         title: '${habit.name} Reminder',
-        message: habit.frequencyType == 'interval'
-            ? 'Time for your scheduled habit!'
-            : 'Don\'t forget your goal today!',
+        message: 'Time for your scheduled habit!',
         time: time,
         habitIds: [habit.id!],
         repetition: RepetitionType.daily,
@@ -638,13 +748,6 @@ class NotificationService {
         isEnabled: true,
         type: NotificationType.simple,
       );
-
-      // Manually schedule using zonedSchedule like generic method but with specific ID
-      // We can reuse scheduleNotification if we tweak it to accept specific ID override
-      // Or simpler: Just replicate the single schedule logic here for robustness
-
-      // 🔔 IMPORTANT: Persist settings to internal DB so "System" knows about it
-      // Although for now we just schedule directly to ensure immediate functionality
 
       await _scheduleSingleNotification(notificationId, settings, habit);
     }
@@ -694,10 +797,12 @@ class NotificationService {
       settings.message,
       tz.TZDateTime.from(scheduledDate, tz.local),
       details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: _exactAlarmsAllowed
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time, // Daily
       payload:
-          'custom_notification:${settings.type.name}:${habit.id}:${habit.id}',
+          'custom_notification:${settings.type.name}:${settings.id}:${settings.habitIds.join(",")}',
     );
   }
 
@@ -768,6 +873,52 @@ class NotificationService {
       AppLog.d('✅ Showed streak achievement for $habitName: $streakDays days');
     } catch (e) {
       AppLog.e('❌ Failed to show achievement notification', e);
+    }
+  }
+
+  Future<void> showGoalAchievement(
+    String habitName,
+    String title,
+    String message,
+  ) async {
+    if (!_isInitialized || !_hasPermission) return;
+
+    try {
+      const AndroidNotificationDetails androidDetails =
+          AndroidNotificationDetails(
+            'goals',
+            'Goals',
+            channelDescription: 'Goal achievement notifications',
+            importance: Importance.high,
+            priority: Priority.high,
+            showWhen: false,
+            enableVibration: true,
+            playSound: true,
+            color: Colors.green,
+          );
+
+      const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+
+      const NotificationDetails details = NotificationDetails(
+        android: androidDetails,
+        iOS: iOSDetails,
+      );
+
+      await _flutterLocalNotificationsPlugin.show(
+        DateTime.now().millisecondsSinceEpoch.remainder(100000),
+        title,
+        message,
+        details,
+        payload: 'goal:$habitName',
+      );
+
+      AppLog.d('✅ Showed goal achievement for $habitName: $title');
+    } catch (e) {
+      AppLog.e('❌ Failed to show goal achievement notification', e);
     }
   }
 

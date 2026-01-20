@@ -9,7 +9,7 @@ class AppConfig {
 
   // Database Configuration
   static const String databaseName = 'habit_tracker.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 8;
 
     // Feature Flags
     static const bool enableAnalytics = true;

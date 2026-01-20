@@ -6,6 +6,7 @@ import '../widgets/habit_card.dart';
 import '../widgets/dashboard/bento_grid.dart'; // Import BentoGrid
 import '../utils/theme.dart';
 import '../utils/app_log.dart';
+import '../utils/helpers.dart';
 import 'habit_setup_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -83,6 +84,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                           _buildGreeting(context),
                           const SizedBox(height: AppTheme.spacingL),
                           const BentoGrid(), // Use new component
+                          const SizedBox(height: AppTheme.spacingL),
+                          _buildDailyGoals(context, habitProvider),
                           const SizedBox(height: AppTheme.spacingL),
                           _buildSectionHeader(
                             context,
@@ -198,6 +201,117 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDailyGoals(BuildContext context, HabitProvider habitProvider) {
+    final todayHabits = habitProvider.todayHabits;
+    final remaining = todayHabits
+        .where((h) => !habitProvider.isHabitCompletedToday(h.id!))
+        .toList();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.checklist_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: AppTheme.spacingS),
+                Text('Daily Goals', style: AppTheme.titleMedium),
+                const Spacer(),
+                Text(
+                  '${remaining.length}/${todayHabits.length} left',
+                  style: AppTheme.bodySmall.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withAlpha(179),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+            if (todayHabits.isEmpty)
+              Text(
+                'Add a habit to start your day with momentum.',
+                style: AppTheme.bodyMedium,
+              )
+            else if (remaining.isEmpty)
+              Text(
+                'Perfect day so far — all habits complete.',
+                style: AppTheme.bodyMedium,
+              )
+            else
+              Column(
+                children: [
+                  for (final habit in remaining.take(3))
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: AppTheme.spacingS,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: habit.color.withAlpha(26),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusS,
+                              ),
+                            ),
+                            child: Icon(
+                              Helpers.getHabitIcon(habit.iconName),
+                              size: 16,
+                              color: habit.color,
+                            ),
+                          ),
+                          const SizedBox(width: AppTheme.spacingS),
+                          Expanded(
+                            child: Text(
+                              habit.name,
+                              style: AppTheme.bodyMedium,
+                            ),
+                          ),
+                          Text(
+                            habit.goalType == 'weekly'
+                                ? '${habit.goalTarget ?? 0}/wk'
+                                : habit.goalType == 'total'
+                                    ? '${habit.goalTarget ?? 0} total'
+                                    : '${habit.goalTarget ?? 0}d',
+                            style: AppTheme.bodySmall.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withAlpha(153),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (remaining.length > 3)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '+${remaining.length - 3} more',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withAlpha(179),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
     );
   }
 

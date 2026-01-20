@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../models/notification_settings.dart';
 import '../providers/user_provider.dart';
@@ -91,6 +92,8 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
                   _buildTimeSettings(),
                   const SizedBox(height: AppTheme.spacingL),
                   _buildNotificationTypeSettings(userProvider),
+                  const SizedBox(height: AppTheme.spacingM),
+                  _buildFullScreenInfo(),
                   const SizedBox(height: AppTheme.spacingL),
                   _buildRepetitionSettings(),
                   const SizedBox(height: AppTheme.spacingL),
@@ -281,6 +284,111 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
     );
   }
 
+  Widget _buildFullScreenInfo() {
+    if (_selectedType != NotificationType.ringing &&
+        _selectedType != NotificationType.alarm) {
+      return const SizedBox.shrink();
+    }
+
+    final title = _selectedType == NotificationType.alarm
+        ? 'Alarm Full-Screen'
+        : 'Ringing Full-Screen';
+    final description = _selectedType == NotificationType.alarm
+        ? 'For the alarm screen to auto-open, enable Full-screen intents and Alarms & reminders in Android settings.'
+        : 'For the ringing screen to auto-open, enable Full-screen intents in Android settings.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: AppTheme.titleMedium),
+            const SizedBox(height: AppTheme.spacingS),
+            Text(
+              description,
+              style: AppTheme.bodySmall.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => openAppSettings(),
+                    icon: const Icon(Icons.settings),
+                    label: const Text('Open Settings'),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingM),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _isLoading ? null : _testFullScreenNotification,
+                    icon: const Icon(Icons.notifications_active),
+                    label: const Text('Test'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _testFullScreenNotification() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final notificationService = NotificationService();
+
+    final hasPermission = await notificationService.requestPermissions();
+    if (!hasPermission) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Notification permission is required for testing.'),
+        ),
+      );
+      return;
+    }
+
+    final now = DateTime.now().add(const Duration(minutes: 1));
+    final time = TimeOfDay(hour: now.hour, minute: now.minute);
+
+    final testNotification = NotificationSettings(
+      id: DateTime.now().millisecondsSinceEpoch.remainder(1000000),
+      title: _selectedType == NotificationType.alarm
+          ? 'Test Alarm'
+          : 'Test Ringing',
+      message: 'This is a test full-screen notification.',
+      time: time,
+      daysOfWeek: const [1, 2, 3, 4, 5, 6, 7],
+      type: _selectedType,
+      repetition: RepetitionType.oneTime,
+      isEnabled: true,
+      habitIds: _selectedHabits,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final success = await notificationService.scheduleNotification(
+      testNotification,
+    );
+
+    if (success) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Test scheduled for 1 minute from now.'),
+        ),
+      );
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Failed to schedule test notification.'),
+        ),
+      );
+    }
+  }
+
   Widget _buildRepetitionSettings() {
     return Card(
       child: Padding(
@@ -298,7 +406,16 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
                   label: Text(type.name.toUpperCase()),
                   onSelected: (selected) {
                     if (selected) {
-                      setState(() => _selectedRepetition = type);
+                      setState(() {
+                        _selectedRepetition = type;
+                        if (_selectedRepetition == RepetitionType.weekly) {
+                          _selectedDays = [DateTime.now().weekday];
+                        } else if (_selectedRepetition == RepetitionType.daily) {
+                          if (_selectedDays.isEmpty) {
+                            _selectedDays = [1, 2, 3, 4, 5, 6, 7];
+                          }
+                        }
+                      });
                     }
                   },
                 );
@@ -311,7 +428,8 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
   }
 
   Widget _buildDaySelection() {
-    if (_selectedRepetition != RepetitionType.daily) {
+    if (_selectedRepetition != RepetitionType.daily &&
+        _selectedRepetition != RepetitionType.weekly) {
       return const SizedBox.shrink();
     }
 
@@ -321,7 +439,12 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Days of Week', style: AppTheme.titleMedium),
+            Text(
+              _selectedRepetition == RepetitionType.weekly
+                  ? 'Day of Week'
+                  : 'Days of Week',
+              style: AppTheme.titleMedium,
+            ),
             const SizedBox(height: AppTheme.spacingM),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -335,25 +458,28 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
                 _buildDayChip('S', 7),
               ],
             ),
-            const SizedBox(height: AppTheme.spacingS),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: () =>
-                      setState(() => _selectedDays = [1, 2, 3, 4, 5]),
-                  child: const Text('Weekdays'),
-                ),
-                TextButton(
-                  onPressed: () => setState(() => _selectedDays = [6, 7]),
-                  child: const Text('Weekends'),
-                ),
-                TextButton(
-                  onPressed: () =>
-                      setState(() => _selectedDays = [1, 2, 3, 4, 5, 6, 7]),
-                  child: const Text('All Days'),
-                ),
-              ],
-            ),
+            if (_selectedRepetition == RepetitionType.daily) ...[
+              const SizedBox(height: AppTheme.spacingS),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () =>
+                        setState(() => _selectedDays = [1, 2, 3, 4, 5]),
+                    child: const Text('Weekdays'),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => _selectedDays = [6, 7]),
+                    child: const Text('Weekends'),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(
+                      () => _selectedDays = [1, 2, 3, 4, 5, 6, 7],
+                    ),
+                    child: const Text('All Days'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -365,8 +491,15 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
     return GestureDetector(
       onTap: () {
         setState(() {
+          if (_selectedRepetition == RepetitionType.weekly) {
+            _selectedDays = [day];
+            return;
+          }
+
           if (isSelected) {
-            _selectedDays.remove(day);
+            if (_selectedDays.length > 1) {
+              _selectedDays.remove(day);
+            }
           } else {
             _selectedDays.add(day);
           }
@@ -502,6 +635,39 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Ensure notification permission is granted before scheduling
+      final notificationService = NotificationService();
+      final hasPermission = await notificationService.requestPermissions();
+      if (!hasPermission) {
+        if (mounted) {
+          Helpers.showConfirmDialog(
+            context,
+            title: 'Enable Notifications',
+            content:
+                'Notifications are required to schedule reminders. Please enable them in Settings.',
+            confirmText: 'Open Settings',
+            onConfirm: () {
+              openAppSettings();
+            },
+          );
+        }
+        return;
+      }
+
+      // Best-effort: prompt for full-screen intents when Alarm type is selected
+      if (_selectedType == NotificationType.alarm && mounted) {
+        Helpers.showConfirmDialog(
+          context,
+          title: 'Enable Full-Screen Alerts',
+          content:
+              'To show the alarm screen automatically, enable “Full-screen intents” for this app in Android settings.',
+          confirmText: 'Open Settings',
+          onConfirm: () {
+            openAppSettings();
+          },
+        );
+      }
+
       final notification = NotificationSettings(
         id: widget.notification?.id,
         title: _titleController.text.trim(),
@@ -535,7 +701,7 @@ class _NotificationSetupScreenState extends State<NotificationSetupScreen> {
       final notificationWithId = notification.copyWith(id: notificationId);
 
       // Schedule the notification
-      final success = await NotificationService().scheduleNotification(
+      final success = await notificationService.scheduleNotification(
         notificationWithId,
       );
 

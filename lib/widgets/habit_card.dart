@@ -8,6 +8,7 @@ import '../utils/theme.dart';
 import '../utils/helpers.dart';
 import '../screens/habit_setup_screen.dart';
 import '../screens/habit_history_screen.dart';
+import '../screens/habit_report_screen.dart';
 
 class HabitCard extends StatefulWidget {
   final Habit habit;
@@ -134,6 +135,21 @@ class _HabitCardState extends State<HabitCard>
                                     _buildStreakBadge(habitProvider),
                                   ],
                                 ),
+                                if (widget.habit.tags.isNotEmpty ||
+                                    (widget.habit.goalTarget ?? 0) > 0) ...[
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      if ((widget.habit.goalTarget ?? 0) > 0)
+                                        _buildGoalBadge(),
+                                      ...widget.habit.tags.take(3).map(
+                                            (tag) => _buildTagChip(tag),
+                                          ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -198,6 +214,56 @@ class _HabitCardState extends State<HabitCard>
           ],
         );
       },
+    );
+  }
+
+  Widget _buildGoalBadge() {
+    final target = widget.habit.goalTarget ?? 0;
+    if (target <= 0) return const SizedBox.shrink();
+
+    String label;
+    switch (widget.habit.goalType) {
+      case 'weekly':
+        label = 'Goal: $target/wk';
+        break;
+      case 'total':
+        label = 'Goal: $target total';
+        break;
+      default:
+        label = 'Goal: $target d';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withAlpha(26),
+        borderRadius: BorderRadius.circular(AppTheme.radiusS),
+      ),
+      child: Text(
+        label,
+        style: AppTheme.bodySmall.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTagChip(String tag) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppTheme.radiusS),
+      ),
+      child: Text(
+        tag,
+        style: AppTheme.bodySmall.copyWith(
+          color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
+          fontSize: 11,
+        ),
+      ),
     );
   }
 
@@ -435,6 +501,30 @@ class _HabitDetailsSheet extends StatelessWidget {
             Text(habit.description!, style: AppTheme.bodyLarge),
           ],
 
+          if ((habit.goalTarget ?? 0) > 0 || habit.tags.isNotEmpty) ...[
+            const SizedBox(height: AppTheme.spacingL),
+            Text(
+              'GOAL & TAGS',
+              style: AppTheme.bodySmall.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingS),
+            if ((habit.goalTarget ?? 0) > 0)
+              _GoalSummary(habit: habit),
+            if (habit.tags.isNotEmpty) ...[
+              const SizedBox(height: AppTheme.spacingS),
+              Wrap(
+                spacing: AppTheme.spacingS,
+                runSpacing: AppTheme.spacingS,
+                children: habit.tags
+                    .map((tag) => _TagPill(label: tag))
+                    .toList(),
+              ),
+            ],
+          ],
+
           const SizedBox(height: AppTheme.spacingL),
           const Divider(),
           const SizedBox(height: AppTheme.spacingM),
@@ -446,7 +536,7 @@ class _HabitDetailsSheet extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: () => _editHabit(context),
                   icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Edit Details'),
+                  label: const Text('Edit'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -454,16 +544,28 @@ class _HabitDetailsSheet extends StatelessWidget {
               ),
               const SizedBox(width: AppTheme.spacingM),
               Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => _viewHistory(context),
-                  icon: const Icon(Icons.calendar_month_rounded),
-                  label: const Text('History'),
-                  style: FilledButton.styleFrom(
+                child: OutlinedButton.icon(
+                  onPressed: () => _viewReport(context),
+                  icon: const Icon(Icons.insights_outlined),
+                  label: const Text('Report'),
+                  style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: AppTheme.spacingM),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _viewHistory(context),
+              icon: const Icon(Icons.calendar_month_rounded),
+              label: const Text('History'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
           ),
           const SizedBox(height: AppTheme.spacingM),
 
@@ -535,10 +637,92 @@ class _HabitDetailsSheet extends StatelessWidget {
     );
   }
 
+  void _viewReport(BuildContext context) {
+    Navigator.pop(context); // Close bottom sheet
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => HabitReportScreen(habit: habit)),
+    );
+  }
+
   void _skipHabit(BuildContext context) {
     final provider = Provider.of<HabitProvider>(context, listen: false);
     provider.logHabitSkip(habit.id!);
     Navigator.pop(context);
     Helpers.showSnackBar(context, 'Habit skipped. Streak maintained.');
+  }
+}
+
+class _GoalSummary extends StatelessWidget {
+  final Habit habit;
+
+  const _GoalSummary({required this.habit});
+
+  @override
+  Widget build(BuildContext context) {
+    final target = habit.goalTarget ?? 0;
+    if (target <= 0) return const SizedBox.shrink();
+
+    String label;
+    switch (habit.goalType) {
+      case 'weekly':
+        label = '$target per week';
+        break;
+      case 'total':
+        label = '$target total completions';
+        break;
+      default:
+        label = '$target day streak';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingS),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withAlpha(20),
+        borderRadius: BorderRadius.circular(AppTheme.radiusS),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.emoji_events_outlined,
+            color: Theme.of(context).colorScheme.primary,
+            size: 18,
+          ),
+          const SizedBox(width: AppTheme.spacingS),
+          Expanded(
+            child: Text(
+              label,
+              style: AppTheme.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TagPill extends StatelessWidget {
+  final String label;
+
+  const _TagPill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppTheme.radiusS),
+      ),
+      child: Text(
+        label,
+        style: AppTheme.bodySmall.copyWith(
+          color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
+        ),
+      ),
+    );
   }
 }

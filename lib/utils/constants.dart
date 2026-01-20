@@ -17,6 +17,23 @@ class Constants {
     'Career',
   ];
 
+  // Tag Constants
+  static const List<String> habitTags = [
+    'Morning',
+    'Evening',
+    'Work',
+    'Health',
+    'Fitness',
+    'Nutrition',
+    'Sleep',
+    'Focus',
+    'Mindfulness',
+    'Learning',
+    'Social',
+    'Self-care',
+    'Finance',
+  ];
+
   // Icon Constants
   static const List<String> habitIcons = [
     'fitness_center',
@@ -55,6 +72,50 @@ class Constants {
     Colors.brown,
   ];
 
+  // Quick Templates
+  static const List<Map<String, dynamic>> habitTemplates = [
+    {
+      'name': 'Drink Water',
+      'description': 'Drink 8 glasses of water',
+      'category': 'Health & Fitness',
+      'icon': 'local_drink',
+      'colorIndex': 0,
+      'goalType': 'weekly',
+      'goalTarget': 28,
+      'tags': ['Health', 'Morning'],
+    },
+    {
+      'name': 'Read 20 Minutes',
+      'description': 'Read daily for 20 minutes',
+      'category': 'Learning',
+      'icon': 'book',
+      'colorIndex': 6,
+      'goalType': 'streak',
+      'goalTarget': 14,
+      'tags': ['Evening', 'Learning'],
+    },
+    {
+      'name': 'Exercise',
+      'description': 'Move your body',
+      'category': 'Health & Fitness',
+      'icon': 'directions_run',
+      'colorIndex': 1,
+      'goalType': 'weekly',
+      'goalTarget': 4,
+      'tags': ['Fitness'],
+    },
+    {
+      'name': 'Meditate',
+      'description': '5–10 minutes of mindfulness',
+      'category': 'Mindfulness',
+      'icon': 'self_improvement',
+      'colorIndex': 5,
+      'goalType': 'streak',
+      'goalTarget': 7,
+      'tags': ['Mindfulness', 'Morning'],
+    },
+  ];
+
   // Animation Constants
   static const Duration shortAnimation = Duration(milliseconds: 200);
   static const Duration mediumAnimation = Duration(milliseconds: 300);
@@ -67,7 +128,7 @@ class Constants {
 
   // Database Constants
   static const String databaseName = 'habit_tracker.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 8;
 
   // Notification Constants
   static const String notificationChannelId = 'habit_reminders';
