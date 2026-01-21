@@ -1,0 +1,5 @@
+# Rename to key.properties and fill with your keystore values.
+# storeFile=C:\path\to\your\release.keystore
+# storePassword=yourStorePassword
+# keyAlias=yourKeyAlias
+# keyPassword=yourKeyPassword

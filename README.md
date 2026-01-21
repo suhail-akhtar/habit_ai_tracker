@@ -28,3 +28,27 @@ A Flutter habit tracker with reminders and analytics. The app is currently fully
    git clone https://github.com/yourusername/ai-voice-habit-tracker.git
    cd ai-voice-habit-tracker
    ```
+
+## 📦 Play Console Readiness
+
+### Launcher Icons
+
+1. Place the following files in assets/icons:
+   - app_icon.png (1024x1024)
+   - app_icon_foreground.png (432x432, transparent)
+2. Generate launcher icons:
+   ```bash
+   flutter pub run flutter_launcher_icons
+   ```
+
+### Android Release Signing
+
+1. Create a release keystore (example):
+   ```bash
+   keytool -genkey -v -keystore android/app/upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+   ```
+2. Copy android/key.properties.template to android/key.properties and fill in values.
+3. Build a release bundle for Play Console:
+   ```bash
+   flutter build appbundle --release
+   ```

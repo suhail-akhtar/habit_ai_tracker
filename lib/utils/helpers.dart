@@ -132,12 +132,22 @@ class Helpers {
     String message, {
     bool isError = false,
   }) {
+    final scheme = Theme.of(context).colorScheme;
+    final background = isError ? scheme.error : scheme.primary;
+    final foreground = isError ? scheme.onError : scheme.onPrimary;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        content: Text(
+          message,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        backgroundColor: background,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

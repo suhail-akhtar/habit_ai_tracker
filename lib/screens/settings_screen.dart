@@ -9,6 +9,8 @@ import '../services/notification_service.dart';
 import '../services/backup_service.dart';
 import '../models/notification_settings.dart';
 import '../utils/theme.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeletons.dart';
 import '../utils/helpers.dart';
 import '../utils/app_log.dart';
 import '../screens/notification_setup_screen.dart';
@@ -44,15 +46,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) setState(() => _isLoadingNotifications = false);
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: Consumer<UserProvider>(
-        builder: (context, userProvider, child) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(AppTheme.spacingM),
+            if (_isLoadingNotifications)
+              const SkeletonList(count: 3, itemHeight: 72)
+            else if (_notifications.isEmpty)
+              _buildEmptyNotificationState(userProvider)
+            else
+              ..._notifications.map(
+                (notification) =>
+                    _buildNotificationItem(notification, userProvider),
+              ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -61,44 +63,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildNotificationSection(context, userProvider), // 🔔 NEW
                 const SizedBox(height: AppTheme.spacingL),
                 _buildAppearanceSection(context, userProvider),
-                const SizedBox(height: AppTheme.spacingL),
-                _buildDataSection(context, userProvider),
-                const SizedBox(height: AppTheme.spacingL),
-                _buildAboutSection(context),
-              ],
-            ),
-          );
-        },
-      ),
+    return EmptyState(
+      icon: Icons.notifications_none,
+      title: 'No notifications set up',
+      message: 'Create reminders to stay on track with your habits.',
+      actionLabel: 'Create Notification',
+      onAction: () => _addNotification(userProvider),
     );
-  }
-
-  Widget _buildAccountSection(BuildContext context, UserProvider userProvider) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacingM),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Account', style: AppTheme.titleMedium),
-            const SizedBox(height: AppTheme.spacingM),
-            ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                child: Icon(
-                  Icons.person,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                ),
-              ),
-              title: Text(
-                'User',
-                style: AppTheme.titleMedium,
-              ),
-              subtitle: Text(
-                'All features are free',
-              ),
-            ),
-          ],
         ),
       ),
     );

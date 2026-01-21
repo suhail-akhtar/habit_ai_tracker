@@ -4,7 +4,7 @@ import 'dart:async'; // 🔔 Needed for StreamController
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:permission_handler/permission_handler.dart';
 import '../models/habit.dart';
 import '../models/notification_settings.dart';
@@ -46,7 +46,7 @@ class NotificationService {
   ) async {
     _backgroundHandler = backgroundHandler; // Store it
     try {
-      tz.initializeTimeZones();
+      tz_data.initializeTimeZones();
 
       const AndroidInitializationSettings initializationSettingsAndroid =
           AndroidInitializationSettings('@mipmap/ic_launcher');

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/habit_provider.dart';
 import '../providers/user_provider.dart';
 import '../widgets/habit_card.dart';
 import '../widgets/dashboard/bento_grid.dart'; // Import BentoGrid
+import '../widgets/empty_state.dart';
+import '../widgets/skeletons.dart';
 import '../utils/theme.dart';
 import '../utils/app_log.dart';
 import '../utils/helpers.dart';
@@ -64,7 +67,18 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Consumer2<HabitProvider, UserProvider>(
           builder: (context, habitProvider, userProvider, child) {
             if (habitProvider.isLoading) {
-              return const Center(child: CircularProgressIndicator());
+              return ListView(
+                padding: const EdgeInsets.all(AppTheme.spacingM),
+                children: const [
+                  SkeletonSection(titleWidth: 120, contentHeight: 72),
+                  SizedBox(height: AppTheme.spacingL),
+                  SkeletonSection(titleWidth: 180, contentHeight: 180),
+                  SizedBox(height: AppTheme.spacingL),
+                  SkeletonSection(titleWidth: 140, contentHeight: 18),
+                  SizedBox(height: AppTheme.spacingM),
+                  SkeletonList(count: 4, itemHeight: 96),
+                ],
+              );
             }
 
             return CustomScrollView(
@@ -77,37 +91,72 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: Padding(
                       // Inner padding is 0 because we handle it in SliverPadding now
                       padding: const EdgeInsets.all(0),
-                      child: Column(
+                        _buildGreeting(context).animate().fadeIn(
+                              duration: AppTheme.mediumAnimation,
+                            )
+                            .slideY(begin: 0.08, end: 0),
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                        const BentoGrid()
+                            .animate()
+                            .fadeIn(duration: AppTheme.mediumAnimation)
+                            .slideY(begin: 0.06, end: 0),
                           const SizedBox(height: AppTheme.spacingM),
-                          _buildGreeting(context),
+                        _buildSectionHeader(
                           const SizedBox(height: AppTheme.spacingL),
                           const BentoGrid(), // Use new component
                           const SizedBox(height: AppTheme.spacingL),
-                          _buildDailyGoals(context, habitProvider),
+                        )
+                            .animate()
+                            .fadeIn(duration: AppTheme.mediumAnimation)
+                            .slideY(begin: 0.04, end: 0),
                           const SizedBox(height: AppTheme.spacingL),
                           _buildSectionHeader(
                             context,
                             'Your Habits',
                             userProvider,
-                          ),
-                          const SizedBox(height: AppTheme.spacingS),
-                        ],
+                if (habitProvider.todayHabits.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingM,
                       ),
+                      child: EmptyState(
+                        icon: Icons.check_circle_outline,
+                        title: 'No habits yet',
+                        message:
+                            'Create your first habit and start building momentum today.',
+                        actionLabel: 'Add Habit',
+                        onAction: () => _handleAddNewHabit(context),
+                      )
+                          .animate()
+                          .fadeIn(duration: AppTheme.mediumAnimation)
+                          .slideY(begin: 0.06, end: 0),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: EdgeInsets.only(
+                      left: horizontalPadding,
+                      right: horizontalPadding,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final habit = habitProvider.todayHabits[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppTheme.spacingS,
+                          ),
+                          child: HabitCard(habit: habit)
+                              .animate()
+                              .fadeIn(
+                                duration: AppTheme.shortAnimation,
+                                delay: Duration(milliseconds: 30 * index),
+                              )
+                              .slideY(begin: 0.02, end: 0),
+                        );
+                      }, childCount: habitProvider.todayHabits.length),
                     ),
                   ),
-                ),
-                SliverPadding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: horizontalPadding,
-                    vertical: AppTheme.spacingS,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final habit = habitProvider.todayHabits[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(
                           bottom: AppTheme.spacingS,
                         ),
                         child: HabitCard(habit: habit),
@@ -126,6 +175,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _handleAddNewHabit(context),
+        tooltip: 'Add habit',
         child: const Icon(Icons.add),
       ),
     );
@@ -167,7 +217,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           'Ready to crush your goals today?',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontWeight: FontWeight.w400,
-            color: Colors.grey,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],

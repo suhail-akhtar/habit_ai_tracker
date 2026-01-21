@@ -94,6 +94,10 @@ coverage/
 # API Keys
 **/lib/config/api_keys.dart
 
+# Android signing
+android/key.properties
+**/*.jks
+
 # Database files
 *.db
 *.sqlite

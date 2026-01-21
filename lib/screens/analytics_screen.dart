@@ -5,6 +5,8 @@ import '../providers/analytics_provider.dart';
 import '../providers/habit_provider.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/skeletons.dart';
 import '../widgets/progress_chart.dart';
 import '../models/habit.dart';
 
@@ -47,7 +49,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       body: Consumer2<AnalyticsProvider, HabitProvider>(
         builder: (context, analyticsProvider, habitProvider, child) {
           if (analyticsProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return ListView(
+              padding: const EdgeInsets.all(AppTheme.spacingM),
+              children: const [
+                SkeletonSection(titleWidth: 140, contentHeight: 160),
+                SizedBox(height: AppTheme.spacingL),
+                SkeletonSection(titleWidth: 180, contentHeight: 120),
+                SizedBox(height: AppTheme.spacingL),
+                SkeletonSection(titleWidth: 160, contentHeight: 140),
+              ],
+            );
           }
 
           return TabBarView(
@@ -66,6 +77,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     AnalyticsProvider analyticsProvider,
     HabitProvider habitProvider,
   ) {
+    if (habitProvider.habits.isEmpty) {
+      return EmptyState(
+        icon: Icons.analytics_outlined,
+        title: 'No analytics yet',
+        message: 'Create a habit and log progress to unlock insights.',
+        actionLabel: 'Create Habit',
+        onAction: () => Navigator.of(context).pushNamed('/habit-setup'),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: () async {
         await analyticsProvider.loadAnalytics();
@@ -130,6 +151,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget _buildInsightsTab(
     AnalyticsProvider analyticsProvider,
   ) {
+    if (analyticsProvider.analytics.isEmpty) {
+      return EmptyState(
+        icon: Icons.auto_awesome,
+        title: 'Insights will appear here',
+        message: 'Log a few habits and return for patterns and tips.',
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppTheme.spacingM),
       child: Column(

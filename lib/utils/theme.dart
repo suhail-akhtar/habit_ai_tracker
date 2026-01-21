@@ -72,6 +72,27 @@ class AppTheme {
     dividerTheme: DividerThemeData(
       color: _lightColorScheme.outline.withAlpha(128),
     ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: _lightColorScheme.onSurface,
+      contentTextStyle: bodyMedium.copyWith(
+        color: _lightColorScheme.surface,
+        fontWeight: FontWeight.w600,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    inputDecorationTheme: _buildInputTheme(_lightColorScheme),
+    filledButtonTheme: _buildFilledButtonTheme(_lightColorScheme),
+    outlinedButtonTheme: _buildOutlinedButtonTheme(_lightColorScheme),
+    textButtonTheme: _buildTextButtonTheme(_lightColorScheme),
+    chipTheme: _buildChipTheme(_lightColorScheme),
+    navigationBarTheme: _buildNavigationBarTheme(_lightColorScheme),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: _lightColorScheme.primary,
+      foregroundColor: _lightColorScheme.onPrimary,
+    ),
+    dialogTheme: _buildDialogTheme(_lightColorScheme),
+    bottomSheetTheme: _buildBottomSheetTheme(_lightColorScheme),
   );
 
   // Dark Theme ("Pro" Mode)
@@ -105,7 +126,143 @@ class AppTheme {
     dividerTheme: DividerThemeData(
       color: _darkColorScheme.outline.withAlpha(128),
     ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: _darkColorScheme.onSurface,
+      contentTextStyle: bodyMedium.copyWith(
+        color: _darkColorScheme.surface,
+        fontWeight: FontWeight.w600,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    inputDecorationTheme: _buildInputTheme(_darkColorScheme, isDark: true),
+    filledButtonTheme: _buildFilledButtonTheme(_darkColorScheme),
+    outlinedButtonTheme: _buildOutlinedButtonTheme(_darkColorScheme),
+    textButtonTheme: _buildTextButtonTheme(_darkColorScheme),
+    chipTheme: _buildChipTheme(_darkColorScheme),
+    navigationBarTheme: _buildNavigationBarTheme(_darkColorScheme),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: _darkColorScheme.primary,
+      foregroundColor: _darkColorScheme.onPrimary,
+    ),
+    dialogTheme: _buildDialogTheme(_darkColorScheme, isDark: true),
+    bottomSheetTheme: _buildBottomSheetTheme(_darkColorScheme, isDark: true),
   );
+
+  static InputDecorationTheme _buildInputTheme(
+    ColorScheme scheme, {
+    bool isDark = false,
+  }) {
+    final fill = isDark ? const Color(0xFF0B1220) : scheme.surface;
+    return InputDecorationTheme(
+      filled: true,
+      fillColor: fill,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: scheme.outline.withAlpha(128)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: scheme.outline.withAlpha(128)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: scheme.primary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: scheme.error),
+      ),
+      hintStyle: bodyMedium.copyWith(color: scheme.onSurface.withAlpha(153)),
+      labelStyle: bodyMedium.copyWith(color: scheme.onSurface.withAlpha(179)),
+    );
+  }
+
+  static FilledButtonThemeData _buildFilledButtonTheme(ColorScheme scheme) {
+    return FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: titleMedium.copyWith(fontWeight: FontWeight.w600),
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+      ),
+    );
+  }
+
+  static OutlinedButtonThemeData _buildOutlinedButtonTheme(ColorScheme scheme) {
+    return OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        side: BorderSide(color: scheme.outline.withAlpha(153)),
+        textStyle: titleSmall.copyWith(fontWeight: FontWeight.w600),
+        foregroundColor: scheme.onSurface,
+      ),
+    );
+  }
+
+  static TextButtonThemeData _buildTextButtonTheme(ColorScheme scheme) {
+    return TextButtonThemeData(
+      style: TextButton.styleFrom(
+        textStyle: titleSmall.copyWith(fontWeight: FontWeight.w600),
+        foregroundColor: scheme.primary,
+      ),
+    );
+  }
+
+  static ChipThemeData _buildChipTheme(ColorScheme scheme) {
+    return ChipThemeData(
+      backgroundColor: scheme.surface,
+      selectedColor: scheme.primary.withAlpha(38),
+      labelStyle: bodySmall.copyWith(color: scheme.onSurface),
+      secondaryLabelStyle: bodySmall.copyWith(color: scheme.onSurface),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      side: BorderSide(color: scheme.outline.withAlpha(128)),
+    );
+  }
+
+  static NavigationBarThemeData _buildNavigationBarTheme(ColorScheme scheme) {
+    return NavigationBarThemeData(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      indicatorColor: scheme.primary.withAlpha(30),
+      labelTextStyle: MaterialStateProperty.all(
+        bodySmall.copyWith(fontWeight: FontWeight.w600),
+      ),
+      iconTheme: MaterialStateProperty.resolveWith((states) {
+        final color = states.contains(MaterialState.selected)
+            ? scheme.primary
+            : scheme.onSurface.withAlpha(179);
+        return IconThemeData(color: color);
+      }),
+    );
+  }
+
+  static DialogTheme _buildDialogTheme(
+    ColorScheme scheme, {
+    bool isDark = false,
+  }) {
+    return DialogTheme(
+      backgroundColor: isDark ? const Color(0xFF111827) : scheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      titleTextStyle: titleLarge.copyWith(color: scheme.onSurface),
+      contentTextStyle: bodyMedium.copyWith(color: scheme.onSurface),
+    );
+  }
+
+  static BottomSheetThemeData _buildBottomSheetTheme(
+    ColorScheme scheme, {
+    bool isDark = false,
+  }) {
+    return BottomSheetThemeData(
+      backgroundColor: isDark ? const Color(0xFF111827) : scheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+    );
+  }
 
   static TextTheme _buildTextTheme(Color color) {
     return TextTheme(

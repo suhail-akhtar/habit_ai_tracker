@@ -1,11 +1,13 @@
+import 'package:flutter/foundation.dart';
+
 class AppConfig {
-    static const String appName = 'Habit Tracker';
+  static const String appName = 'Habit AI Tracker';
   static const String appVersion = '1.0.0';
 
     // Debugging
 
   static const bool enableApiDebugging = false;
-  static Duration apiTimeout = Duration(seconds: 30);
+  static const Duration apiTimeout = Duration(seconds: 30);
 
   // Database Configuration
   static const String databaseName = 'habit_tracker.db';
@@ -26,6 +28,6 @@ class AppConfig {
       'Daily habit reminder notifications';
 
   // Development Configuration
-  static const bool isDebugMode = true;
-  static const bool enableLogging = true;
+  static bool get isDebugMode => kDebugMode;
+  static bool get enableLogging => kDebugMode;
 }

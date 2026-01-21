@@ -1,11 +1,3 @@
-package com.example.habit_ai_tracker
+package com.ai.habittracker.app
 
-import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-
-class MainActivity: FlutterActivity() {
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        flutterEngine.plugins.add(SpeechToTextPlugin())
-    }
-}
+// Legacy file retained intentionally (deprecated). No classes here.

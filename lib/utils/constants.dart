@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class Constants {
   // App Constants
-  static const String appName = 'AI Voice Habit Tracker';
+  static const String appName = 'Habit AI Tracker';
   static const int freeHabitLimit = 3; // 🔧 FIXED: Consistent 3-habit limit
 
   // Category Constants

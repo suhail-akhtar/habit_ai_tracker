@@ -4,82 +4,87 @@ import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/habit.dart';
 import '../providers/habit_provider.dart';
-import '../utils/theme.dart';
-import '../utils/helpers.dart';
-import '../screens/habit_setup_screen.dart';
-import '../screens/habit_history_screen.dart';
-import '../screens/habit_report_screen.dart';
-
-class HabitCard extends StatefulWidget {
-  final Habit habit;
-  final VoidCallback? onTap;
-
-  const HabitCard({super.key, required this.habit, this.onTap});
-
-  @override
-  State<HabitCard> createState() => _HabitCardState();
-}
-
-class _HabitCardState extends State<HabitCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  bool _isCompleted = false;
-  int _currentCount = 0; // 🎯 NEW: Track progress count
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: AppTheme.shortAnimation,
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<HabitProvider>(
-      builder: (context, habitProvider, child) {
-        _isCompleted = habitProvider.isHabitCompletedToday(widget.habit.id!);
-        _currentCount = habitProvider.getCompletionCountToday(
-          widget.habit.id!,
-        ); // 🎯 NEW
-
-        return AnimatedBuilder(
-          animation: _scaleAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _scaleAnimation.value,
-              child: Container(
-                margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusL),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _isCompleted
-                          ? widget.habit.color.withAlpha(77)
-                          : Colors.black.withAlpha(13),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+                child: Semantics(
+                  label:
+                      '${widget.habit.name}, ${_isCompleted ? 'completed' : 'not completed'}',
+                  button: true,
+                  child: Card(
+                    elevation: 0,
+                    color: Theme.of(context).cardTheme.color,
+                    child: InkWell(
+                      onTap: widget.onTap ?? () => _showHabitDetails(context),
+                      onTapDown: (_) => _animationController.forward(),
+                      onTapUp: (_) => _animationController.reverse(),
+                      onTapCancel: () => _animationController.reverse(),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusL),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppTheme.spacingM),
+                        child: Row(
+                          children: [
+                            _buildHabitIcon(),
+                            const SizedBox(width: AppTheme.spacingM),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.habit.name,
+                                    style: AppTheme.titleLarge.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      decoration: _isCompleted
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      color: _isCompleted
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.onSurface.withAlpha(128)
+                                          : Theme.of(
+                                              context,
+                                            ).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: widget.habit.color.withAlpha(38),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          widget.habit.category,
+                                          style: AppTheme.bodySmall.copyWith(
+                                            color: widget.habit.color,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${_currentCount}/${widget.habit.targetFrequency}',
+                                        style: AppTheme.bodySmall.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withAlpha(153),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _buildActionButton(),
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
+                  ),
                 ),
-                child: Card(
-                  elevation: 0,
-                  color: Theme.of(context).cardTheme.color,
-                  child: InkWell(
-                    onTap: widget.onTap ?? () => _showHabitDetails(context),
-                    onTapDown: (_) => _animationController.forward(),
-                    onTapUp: (_) => _animationController.reverse(),
                     onTapCancel: () => _animationController.reverse(),
                     borderRadius: BorderRadius.circular(AppTheme.radiusL),
                     child: Padding(
